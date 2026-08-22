@@ -1,0 +1,18 @@
+# Config du modèle cible pour l'abliteration.
+# HF repo id à confirmer/ajuster selon la version publiée (Instruct requis :
+# la baseline suppose un modèle fine-tuné pour refuser).
+model_id: "mistralai/Ministral-3B-Instruct-2410"
+dtype: "bfloat16"
+device: "cuda"
+
+# Résidual streams candidats pour la direction de refus.
+activation_layers: ["resid_pre", "resid_mid", "resid_post"]
+selected_layers: ["resid_pre"]
+
+# Taille des échantillons pour la collecte d'activations.
+n_train_instructions: 256
+n_test_instructions: 32
+batch_size: 16
+
+# Nombre de couches candidates évaluées manuellement/automatiquement.
+eval_top_n: 20

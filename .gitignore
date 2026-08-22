@@ -1,0 +1,24 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
+
+# Local model weights / caches
+models/
+*.safetensors
+*.gguf
+.cache/
+hf_cache/
+
+# Experiment outputs
+results/
+outputs/
+*.log
+
+# Data (seeds are fetched, not committed)
+data/*
+!data/README.md
+
+wandb/
+.ipynb_checkpoints/

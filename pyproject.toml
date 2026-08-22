@@ -1,0 +1,33 @@
+[project]
+name = "argos"
+version = "0.1.0"
+description = "Agentic Red-teaming & Guardrail-stripped Offensive System — mesure du compromis refus/raisonnement lors de l'abliteration de LLM."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Shaïma Derouich" }]
+
+dependencies = [
+    "torch>=2.2",
+    "transformers>=4.44",
+    "transformer_lens>=1.17",
+    "datasets>=2.20",
+    "einops>=0.8",
+    "jaxtyping>=0.2",
+    "tqdm>=4.66",
+    "pyyaml>=6.0",
+    "lm-eval>=0.4",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "ruff>=0.5"]
+
+[project.scripts]
+argos = "argos.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["argos*"]
