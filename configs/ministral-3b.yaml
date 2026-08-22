@@ -1,8 +1,8 @@
-model_id: "mistralai/Ministral-3B-Instruct-2410"
+model_id: "mistralai/Ministral-3-3B-Instruct-2512-BF16"
 dtype: "bfloat16"
 device: "cuda"
 
-activation_layers: ["resid_pre", "resid_mid", "resid_post"]
+activation_layers: ["resid_pre", "resid_post"]
 selected_layers: ["resid_pre"]
 
 n_train_instructions: 256
