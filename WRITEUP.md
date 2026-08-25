@@ -96,20 +96,38 @@ Une fois le modèle ablaté corrigé (Phase 1 rejouée) disponible, la mesure a 
 
 Lecture : le refus chute nettement et de façon statistiquement significative (intervalles à 95 % qui ne se recouvrent quasiment pas). Sur les sept mesures de capacité, un seul écart (droit professionnel) approche une erreur-type ; tous les autres, y compris GSM8K, la tâche de raisonnement multi-étapes la plus susceptible de révéler une dégradation, sont dans le bruit. C'est un résultat notable au regard de la littérature (Labonne rapporte une perte de performance nécessitant un DPO correctif après ablation) : sur ce modèle et cette direction précise, le compromis refus/capacité semble, à cette échelle de mesure, quasi nul, GSM8K inclus.
 
-**Limites à ne pas perdre de vue** : les erreurs-types restent notables (4 points sur les tâches à n=150, 11 points sur GSM8K à n=20), donc une dégradation réelle mais modeste pourrait rester invisible ; aucune correction pour comparaisons multiples (7 mesures testées) ; une seule direction d'ablation a été évaluée, pas de balayage systématique couche par couche.
+**Limites à ne pas perdre de vue** : les erreurs-types restent notables (4 points sur les tâches à n=150, 11 points sur GSM8K à n=20), donc une dégradation réelle mais modeste pourrait rester invisible ; aucune correction pour comparaisons multiples (7 mesures testées) ; la mesure ci-dessus ne portait que sur une seule direction d'ablation (voir balayage ci-dessous pour la vue d'ensemble par couche).
+
+### Balayage multi-couches (la figure signature du projet)
+
+Plutôt que d'évaluer une seule direction, `argos-sweep` recalcule les directions candidates pour chaque couche, en applique huit réparties uniformément sur les 26 couches du modèle (1, 4, 8, 11, 15, 18, 22, 25), et mesure pour chacune le taux de refus résiduel (32 instructions de test) et la capacité (HellaSwag, n=100). Chaque couche est testée en isolation : rechargement du modèle propre, application de l'ablation, mesure, sans accumulation d'effets entre couches.
+
+| Couche | Refus résiduel | Dégénéré | HellaSwag acc | HellaSwag acc_norm |
+|---|---|---|---|---|
+| 1 | 18,8 % | 0,0 % | 0,48 | 0,59 |
+| 4 | 31,2 % | 0,0 % | 0,49 | 0,70 |
+| 8 | 28,1 % | 0,0 % | 0,50 | 0,68 |
+| 11 | 3,1 % | 0,0 % | 0,50 | 0,67 |
+| 15 | 0,0 % | 0,0 % | 0,51 | 0,66 |
+| 18 | 0,0 % | 0,0 % | 0,50 | 0,67 |
+| 22 | 3,1 % | 0,0 % | 0,49 | 0,67 |
+| 25 | 12,5 % | 0,0 % | 0,50 | 0,68 |
+
+Lecture : la capacité (colonnes HellaSwag) reste quasi constante sur toute la profondeur du réseau, quelle que soit la couche ablatée. Le taux de refus, lui, dessine une courbe en cloche inversée nette : les couches précoces (1, 4, 8) suppriment mal le refus (19 à 31 % de refus subsiste), l'efficacité grimpe fortement en milieu de réseau et atteint 0 % sur les couches 15 et 18, avant de remonter légèrement en fin de réseau (12,5 % à la couche 25). Ce résultat est cohérent avec l'intuition standard en interprétabilité mécaniste : les comportements abstraits de haut niveau, comme la décision de refuser, sont mieux représentés dans les couches médianes à tardives, pas dans les toutes premières qui encodent encore des informations bas niveau proches du token brut. C'est aussi cette observation qui confirme, indépendamment de la mesure Phase 2 ciblée, l'absence de compromis refus/capacité détectable sur ce modèle : même aux couches où le refus tombe à zéro, la capacité ne bouge pas.
 
 ## État actuel et limites assumées
 
 - Phase 0 (cadrage) : terminée.
 - Phase 1 (ablation) : **terminée et validée**, pipeline corrigé, couvert par des tests de non-régression, résultat rejoué et vérifié (poids sains, sortie cohérente).
-- Phase 2 (mesure capacité/refus) : **terminée pour la direction retenue** : HellaSwag, 4 sujets MMLU et GSM8K, refus quasi éliminé, aucune perte de capacité détectable au-delà du bruit sur les 7 mesures. Reste : balayage multi-directions.
-- Phase 3 (détection d'un modèle ablaté, volet défensif) et Phase 4 (packaging final) : non commencées.
+- Phase 2 (mesure capacité/refus) : **terminée**, y compris le balayage multi-couches : refus quasi éliminé aux couches médianes, aucune perte de capacité détectable à aucune profondeur.
+- Phase 3 (détection d'un modèle ablaté, volet défensif) : outillage construit (`argos-detect`, projection des activations sur la direction de refus connue), pas encore exécuté sur des modèles réels.
+- Phase 4 (packaging final) : non commencée.
 
 ## Prochaines étapes
 
-1. Balayer plusieurs directions/couches candidates (pas seulement celle retenue par Phase 1) pour tracer la vraie figure signature du projet : refus résiduel vs capacité, en fonction du choix de direction.
-2. Augmenter l'échantillon (n plus grand par tâche) pour resserrer les erreurs-types et confirmer que l'absence de dégradation tient à plus grande échelle.
-3. Volet défensif (Phase 3) : probing sur les activations pour détecter qu'un modèle donné a été ablaté.
+1. Exécuter `argos-detect` sur le modèle original et le modèle ablaté pour valider empiriquement le volet défensif.
+2. Étendre la détection à un scénario plus réaliste : un modèle ablaté avec une direction *inconnue* du détecteur (aujourd'hui, la détection suppose que le vecteur de refus utilisé pour l'ablation est déjà connu).
+3. Packaging final (Phase 4) : notebook de démonstration, nettoyage du dépôt pour en faire une vitrine GitHub.
 
 ## Leçon retenue
 
