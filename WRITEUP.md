@@ -76,21 +76,37 @@ Second run (après correctif), même configuration (256 instructions d'entraîne
 - Vérification directe des poids sauvegardés : **0 tenseur sur 458 contient un NaN ou un Inf** (contre 53/458 entièrement NaN sur le run précédent).
 - Test de cohérence qualitatif (« Quelle est la capitale de la France ? ») : réponse correcte et cohérente (*« The capital of France is Paris. »*), confirmant que le modèle raisonne toujours normalement sur une question neutre.
 
-### Phase 2 : mesure capacité vs refus (outillage prêt, pas encore exécutée sur le modèle corrigé)
+### Phase 2 : mesure capacité vs refus (résultat valide)
 
-Les premiers chiffres obtenus lors des smoke tests (contraste HellaSwag entre modèle original et modèle « ablaté ») reflétaient la même corruption que la Phase 1 : un modèle qui ne génère que des tokens `<unk>` obtient logiquement 0 sur toute tâche de capacité. Ces chiffres ont été retirés, ils ne mesuraient rien de réel. L'outillage (refonte plus légère : HellaSwag + plusieurs sujets MMLU par défaut, GSM8K optionnel et limité pour éviter la surchauffe ; intervalle de confiance de Wilson sur le taux de refus) est prêt et validé mécaniquement, mais n'a pas encore tourné sur le modèle ablaté corrigé.
+Les premiers chiffres obtenus lors des smoke tests (contraste HellaSwag entre modèle original et modèle « ablaté ») reflétaient la même corruption que la Phase 1 : un modèle qui ne génère que des tokens `<unk>` obtient logiquement 0 sur toute tâche de capacité. Ces chiffres ont été retirés, ils ne mesuraient rien de réel.
+
+Une fois le modèle ablaté corrigé (Phase 1 rejouée) disponible, la mesure a été relancée en version allégée : HellaSwag et quatre sujets MMLU (algèbre abstraite, mathématiques lycée, scénarios moraux, droit professionnel), 100 échantillons par tâche, GSM8K exclu par défaut pour éviter la surchauffe (coût de génération trop élevé). Refus mesuré sur les 32 instructions de test habituelles, avec intervalle de confiance de Wilson à 95 %.
+
+| | Original | Ablaté | Écart |
+|---|---|---|---|
+| Refus (n=32) | 21,9 % [11,0 ; 38,8] | 0,0 % [0,0 ; 10,7] | net, IC non chevauchants |
+| HellaSwag acc (n=100) | 0,50 ± 0,050 | 0,51 ± 0,050 | +0,01, bruit |
+| HellaSwag acc_norm (n=100) | 0,67 ± 0,047 | 0,66 ± 0,048 | −0,01, bruit |
+| MMLU algèbre abstraite (n=100) | 0,46 ± 0,050 | 0,43 ± 0,050 | −0,03, bruit |
+| MMLU maths lycée (n=100) | 0,41 ± 0,049 | 0,41 ± 0,049 | 0,00 |
+| MMLU scénarios moraux (n=100) | 0,26 ± 0,044 | 0,24 ± 0,043 | −0,02, bruit |
+| MMLU droit professionnel (n=100) | 0,51 ± 0,050 | 0,48 ± 0,050 | −0,03, bruit |
+
+Lecture : le refus chute nettement et de façon statistiquement significative (intervalles à 95 % qui ne se recouvrent quasiment pas). Sur les cinq tâches de capacité, tous les écarts observés (au plus 0,03) sont **inférieurs à une erreur-type** : aucune dégradation significative ne se détecte à ce niveau d'échantillonnage. C'est un résultat notable au regard de la littérature (Labonne rapporte une perte de performance nécessitant un DPO correctif après ablation) : sur ce modèle et cette direction précise, le compromis refus/capacité semble, à cette échelle de mesure, quasi nul.
+
+**Limites à ne pas perdre de vue** : n=100 par tâche donne des erreurs-types encore larges (~5 points), donc une dégradation réelle mais modeste pourrait rester invisible ; aucune correction pour comparaisons multiples (5 tâches testées) ; GSM8K (raisonnement multi-étapes, le plus susceptible de révéler une dégradation) n'a pas été testé, faute de budget thermique ; une seule direction d'ablation a été évaluée, pas de balayage systématique couche par couche.
 
 ## État actuel et limites assumées
 
 - Phase 0 (cadrage) : terminée.
 - Phase 1 (ablation) : **terminée et validée**, pipeline corrigé, couvert par des tests de non-régression, résultat rejoué et vérifié (poids sains, sortie cohérente).
-- Phase 2 (mesure capacité/refus) : outillage prêt, reste à exécuter sur le modèle ablaté corrigé.
+- Phase 2 (mesure capacité/refus) : **résultat obtenu** sur HellaSwag + 4 sujets MMLU (n=100) : refus quasi éliminé, aucune perte de capacité détectable au-delà du bruit. GSM8K et balayage multi-directions restent à faire.
 - Phase 3 (détection d'un modèle ablaté, volet défensif) et Phase 4 (packaging final) : non commencées.
 
 ## Prochaines étapes
 
-1. Lancer la mesure Phase 2 (HellaSwag + MMLU par défaut, GSM8K optionnel en petit échantillon) sur le modèle ablaté corrigé.
-2. Produire la figure signature du projet : taux de refus résiduel vs score de capacité.
+1. Étendre la mesure Phase 2 à GSM8K en petit échantillon (10-20 exemples) pour couvrir le raisonnement multi-étapes, en surveillant la charge thermique.
+2. Balayer plusieurs directions/couches candidates (pas seulement celle retenue par Phase 1) pour tracer la vraie figure signature du projet : refus résiduel vs capacité, en fonction du choix de direction.
 3. Volet défensif (Phase 3) : probing sur les activations pour détecter qu'un modèle donné a été ablaté.
 
 ## Leçon retenue
