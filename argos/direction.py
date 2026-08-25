@@ -4,6 +4,9 @@ from tqdm import tqdm
 from argos.activations import get_layers, tokenize_instructions
 
 
+MIN_DIRECTION_NORM = 1e-4
+
+
 def compute_refusal_directions(harmful_acts, harmless_acts, config):
     candidates = []
     for act_name in config.selected_layers:
@@ -11,9 +14,13 @@ def compute_refusal_directions(harmful_acts, harmless_acts, config):
             harmful_mean = harmful_acts[act_name][layer_idx].mean(dim=0)
             harmless_mean = harmless_acts[act_name][layer_idx].mean(dim=0)
             direction = harmful_mean - harmless_mean
-            direction = direction / direction.norm()
-            candidates.append(direction)
-    return sorted(candidates, key=lambda d: abs(d.mean()), reverse=True)
+            norm = direction.norm()
+            if norm < MIN_DIRECTION_NORM:
+                continue
+            candidates.append(direction / norm)
+
+    candidates = [d for d in candidates if not torch.isnan(d).any()]
+    return sorted(candidates, key=lambda d: abs(d.mean()).item(), reverse=True)
 
 
 def direction_ablation(activation, direction):
