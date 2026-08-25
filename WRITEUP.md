@@ -115,19 +115,33 @@ Plutôt que d'évaluer une seule direction, `argos-sweep` recalcule les directio
 
 Lecture : la capacité (colonnes HellaSwag) reste quasi constante sur toute la profondeur du réseau, quelle que soit la couche ablatée. Le taux de refus, lui, dessine une courbe en cloche inversée nette : les couches précoces (1, 4, 8) suppriment mal le refus (19 à 31 % de refus subsiste), l'efficacité grimpe fortement en milieu de réseau et atteint 0 % sur les couches 15 et 18, avant de remonter légèrement en fin de réseau (12,5 % à la couche 25). Ce résultat est cohérent avec l'intuition standard en interprétabilité mécaniste : les comportements abstraits de haut niveau, comme la décision de refuser, sont mieux représentés dans les couches médianes à tardives, pas dans les toutes premières qui encodent encore des informations bas niveau proches du token brut. C'est aussi cette observation qui confirme, indépendamment de la mesure Phase 2 ciblée, l'absence de compromis refus/capacité détectable sur ce modèle : même aux couches où le refus tombe à zéro, la capacité ne bouge pas.
 
+### Phase 3 : détection d'un modèle ablaté (validée sur direction connue)
+
+`argos-detect` part du principe suivant : si l'on connaît la direction de refus utilisée pour ablater un modèle, on peut sonder n'importe quel checkpoint en lui faisant traiter des instructions nuisibles, projeter ses activations à la couche concernée sur cette direction, et comparer à un modèle de référence non modifié. Un modèle ablaté doit, par construction mathématique de l'orthogonalisation, avoir une projection quasi nulle.
+
+Test sur un modèle ablaté fraîchement généré (couche 18, celle qui atteint 0 % de refus dans le balayage ci-dessus), 32 instructions de sonde :
+
+| | Projection moyenne | Écart-type |
+|---|---|---|
+| Modèle original | 4,10 | 0,85 |
+| Modèle ablaté | 0,0012 | 0,0024 |
+
+Ratio ablaté/original : 0,0003. Seuil de détection (20 %) largement franchi, le modèle est correctement signalé comme ablaté.
+
+**Limite assumée et importante** : ce résultat valide que la mécanique fonctionne comme prévu, mais ne prouve pas grand-chose de nouveau en soi, l'orthogonalisation *garantit* mathématiquement une projection nulle sur la direction utilisée. Le détecteur actuel suppose connue la direction exacte ayant servi à l'ablation, un scénario réaliste seulement si on soupçonne un modèle précis d'avoir été modifié par une technique qu'on peut reproduire soi-même. Le problème réellement difficile, détecter qu'un modèle a été ablaté par une direction *inconnue*, n'est pas résolu par cet outil et reste en suspens.
+
 ## État actuel et limites assumées
 
 - Phase 0 (cadrage) : terminée.
 - Phase 1 (ablation) : **terminée et validée**, pipeline corrigé, couvert par des tests de non-régression, résultat rejoué et vérifié (poids sains, sortie cohérente).
 - Phase 2 (mesure capacité/refus) : **terminée**, y compris le balayage multi-couches : refus quasi éliminé aux couches médianes, aucune perte de capacité détectable à aucune profondeur.
-- Phase 3 (détection d'un modèle ablaté, volet défensif) : outillage construit (`argos-detect`, projection des activations sur la direction de refus connue), pas encore exécuté sur des modèles réels.
+- Phase 3 (détection d'un modèle ablaté, volet défensif) : **MVP validé** sur direction connue ; détection à direction inconnue non résolue.
 - Phase 4 (packaging final) : non commencée.
 
 ## Prochaines étapes
 
-1. Exécuter `argos-detect` sur le modèle original et le modèle ablaté pour valider empiriquement le volet défensif.
-2. Étendre la détection à un scénario plus réaliste : un modèle ablaté avec une direction *inconnue* du détecteur (aujourd'hui, la détection suppose que le vecteur de refus utilisé pour l'ablation est déjà connu).
-3. Packaging final (Phase 4) : notebook de démonstration, nettoyage du dépôt pour en faire une vitrine GitHub.
+1. Étendre la détection à un scénario plus réaliste : reconnaître qu'un modèle a été ablaté sans connaître à l'avance la direction utilisée (probablement via une direction de référence recalculée sur un modèle de la même famille, ou une mesure de forme de distribution plutôt qu'une projection ciblée).
+2. Packaging final (Phase 4) : notebook de démonstration, nettoyage du dépôt pour en faire une vitrine GitHub.
 
 ## Leçon retenue
 
