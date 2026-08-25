@@ -22,6 +22,8 @@ dev = ["pytest>=8.0", "ruff>=0.5"]
 [project.scripts]
 argos = "argos.cli:main"
 argos-measure = "argos.measure:main"
+argos-sweep = "argos.sweep:main"
+argos-detect = "argos.detect:main"
 
 [build-system]
 requires = ["setuptools>=68"]

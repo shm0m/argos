@@ -7,8 +7,8 @@ from argos.activations import get_layers, tokenize_instructions
 MIN_DIRECTION_NORM = 1e-4
 
 
-def compute_refusal_directions(harmful_acts, harmless_acts, config):
-    candidates = []
+def compute_refusal_directions_indexed(harmful_acts, harmless_acts, config):
+    results = []
     for act_name in config.selected_layers:
         for layer_idx in sorted(harmful_acts[act_name]):
             harmful_mean = harmful_acts[act_name][layer_idx].mean(dim=0)
@@ -17,10 +17,17 @@ def compute_refusal_directions(harmful_acts, harmless_acts, config):
             norm = direction.norm()
             if norm < MIN_DIRECTION_NORM:
                 continue
-            candidates.append(direction / norm)
+            direction = direction / norm
+            if torch.isnan(direction).any():
+                continue
+            results.append((act_name, layer_idx, direction))
+    return results
 
-    candidates = [d for d in candidates if not torch.isnan(d).any()]
-    return sorted(candidates, key=lambda d: abs(d.mean()).item(), reverse=True)
+
+def compute_refusal_directions(harmful_acts, harmless_acts, config):
+    indexed = compute_refusal_directions_indexed(harmful_acts, harmless_acts, config)
+    directions = [direction for _, _, direction in indexed]
+    return sorted(directions, key=lambda d: abs(d.mean()).item(), reverse=True)
 
 
 def direction_ablation(activation, direction):

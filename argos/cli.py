@@ -1,4 +1,5 @@
 import argparse
+from pathlib import Path
 
 import torch
 from transformers import AutoModelForImageTextToText, AutoTokenizer
@@ -7,7 +8,7 @@ from argos.ablate import apply_ablation
 from argos.activations import collect_activations
 from argos.config import ArgosConfig
 from argos.data import get_harmful_instructions, get_harmless_instructions
-from argos.direction import compute_refusal_directions, score_directions
+from argos.direction import compute_refusal_directions_indexed, score_directions
 from argos.eval.refusal import degenerate_rate, refusal_rate
 
 
@@ -30,9 +31,12 @@ def run(config: ArgosConfig, output_dir: str):
     harmful_acts, harmless_acts = collect_activations(
         model, tokenizer, harmful_train, harmless_train, config
     )
-    directions = compute_refusal_directions(harmful_acts, harmless_acts, config)
-    if not directions:
+    indexed = compute_refusal_directions_indexed(harmful_acts, harmless_acts, config)
+    if not indexed:
         raise RuntimeError("aucune direction de refus valide (toutes degenerees ou NaN)")
+
+    indexed = sorted(indexed, key=lambda t: abs(t[2].mean()).item(), reverse=True)
+    directions = [direction for _, _, direction in indexed]
 
     evals = score_directions(model, tokenizer, directions, harmful_test, config)
 
@@ -47,14 +51,21 @@ def run(config: ArgosConfig, output_dir: str):
         )
 
     best_idx = min(valid_indices, key=lambda i: scores[i])
+    act_name, layer_idx, direction = indexed[best_idx]
     print(
-        f"direction #{best_idx} selectionnee, taux de refus residuel = {scores[best_idx]:.2%}, "
+        f"direction #{best_idx} (couche {layer_idx}, {act_name}) selectionnee, "
+        f"taux de refus residuel = {scores[best_idx]:.2%}, "
         f"taux de generations degenerees = {degeneracy[best_idx]:.2%}"
     )
 
-    apply_ablation(model, directions[best_idx])
+    apply_ablation(model, direction)
     model.save_pretrained(output_dir)
     tokenizer.save_pretrained(output_dir)
+
+    torch.save(
+        {"act_name": act_name, "layer": layer_idx, "direction": direction.cpu()},
+        Path(output_dir) / "refusal_direction.pt",
+    )
 
 
 def main():
