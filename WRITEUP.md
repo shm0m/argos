@@ -48,37 +48,44 @@ Pour la mesure de capacité (Phase 2), lm-eval-harness (`HFLM`) vérifie par une
 
 La tâche GSM8K de lm-eval-harness repose sur de la génération (`generate_until`), beaucoup plus coûteuse que les tâches à choix multiple évaluées par log-vraisemblance (HellaSwag, MMLU) : environ 20 secondes par échantillon. La charge soutenue sur la RTX 5070 Ti Laptop a fini par déclencher une extinction thermique de la machine en pleine mesure Phase 2, interrompant le run avant son terme.
 
+### 8. Direction NaN sélectionnée silencieusement (bug critique, invalide le premier résultat Phase 1)
+
+En préparant une mesure Phase 2 plus légère, un test de cohérence simple (demander au modèle ablaté la capitale de la France) a révélé que celui-ci générait uniquement des tokens `<unk>` en boucle. Inspection des poids sauvegardés : `embed_tokens`, tous les `self_attn.o_proj` et tous les `mlp.down_proj` étaient **entièrement composés de NaN**.
+
+Cause identifiée par diagnostic direct sur les activations collectées : la couche 0 (`resid_pre`, c'est-à-dire l'embedding brut du dernier token, avant tout bloc transformer) a une différence de moyenne nuisible/bénin **exactement nulle**, parce que le dernier token de la séquence est le même marqueur de début de tour assistant pour tous les prompts (ajouté par `add_generation_prompt=True`). Normaliser un vecteur de norme nulle produit un NaN. Le tri des candidats par `abs(direction.mean())`, non protégé contre les NaN, a classé ce candidat en position #0. Pire : la métrique de refus (recherche de phrases comme « I cannot ») ne détectait pas le texte vide comme un cas particulier, elle l'a donc compté à tort comme « pas de refus », validant en apparence une direction totalement cassée.
+
+**Conséquence : le résultat « 0,00 % de refus résiduel » annoncé plus bas pour la Phase 1 était un faux positif.** Le modèle n'avait pas cessé de refuser, il avait cessé de générer quoi que ce soit de cohérent.
+
+Corrections apportées :
+- `compute_refusal_directions` exclut désormais les couches à norme quasi nulle avant normalisation, et filtre tout NaN résiduel avant le tri.
+- Ajout de `is_degenerate`/`degenerate_rate` (texte vide ou trop court) dans le module de mesure de refus, pour ne plus jamais confondre « absence de réponse » et « absence de refus ».
+- La sélection de la meilleure direction dans `argos.cli` écarte désormais tout candidat majoritairement dégénéré, avec erreur explicite si aucune direction valide ne subsiste.
+- Tests de non-régression ajoutés (`tests/test_direction.py`, `tests/test_eval.py`).
+
 ## Résultats obtenus
 
-### Phase 1 : ablation complète
+### Phase 1 : ablation complète (résultat initial invalidé, à refaire avec le correctif)
 
-Run complet avec la configuration par défaut (`configs/ministral-3b.yaml`) : 256 instructions d'entraînement, 32 instructions de test, 20 directions candidates évaluées.
+Un premier run complet avec la configuration par défaut (256 instructions d'entraînement, 32 de test, 20 directions candidates, ~1h05 de calcul) avait annoncé un taux de refus résiduel de 0,00 % dès la première direction testée. Ce résultat s'est révélé être un artefact du bug décrit ci-dessus (obstacle 8) : la direction retenue était NaN, et le modèle ne générait plus rien d'exploitable. Le pipeline a depuis été corrigé ; ce run doit être refait avant de pouvoir citer un chiffre.
 
-- Durée : environ 1h05 (collecte d'activations rapide, scoring des 20 directions dominant le temps total, ~140 à 200 secondes par direction).
-- Résultat : la direction #0 (la mieux classée par force de signal) a été retenue directement. Taux de refus résiduel sur les 32 instructions de test : **0,00 %**.
-- Le modèle ablaté a été sauvegardé avec succès (checkpoint safetensors, ~7,7 Go).
+### Phase 2 : mesure capacité vs refus (non concluante)
 
-### Phase 2 : mesure capacité vs refus (partielle)
-
-Un smoke test (5 échantillons HellaSwag) a validé le fonctionnement mécanique du pipeline de mesure : chargement des deux modèles (original et ablaté), calcul du taux de refus sur les 32 instructions de test par défaut, évaluation de capacité via lm-eval-harness.
-
-Chiffres obtenus sur ce petit échantillon (non représentatifs, à confirmer sur un run à plus grande échelle) :
-
-| | Refus (n=32) | HellaSwag acc_norm (n=5) |
-|---|---|---|
-| Modèle original | 21,9 % | 0,80 |
-| Modèle ablaté | 0,0 % | 0,00 |
-
-Ce contraste va dans le sens attendu par la littérature (l'ablation dégrade la capacité générale du modèle), mais n=5 est bien trop petit pour en tirer une conclusion : un seul échantillon supplémentaire correctement répondu changerait le score de 20 points. Le run à pleine échelle (50 échantillons par tâche sur HellaSwag, GSM8K et MMLU, pour les deux modèles) a été lancé mais interrompu par l'extinction thermique de la machine avant d'obtenir des chiffres exploitables.
+Les premiers chiffres obtenus (contraste marqué entre modèle original et modèle « ablaté » sur HellaSwag) reflétaient en réalité la même corruption : un modèle qui ne génère que des tokens `<unk>` obtient logiquement 0 sur toute tâche de capacité. Ces chiffres sont retirés de ce document, ils ne mesuraient rien de réel.
 
 ## État actuel et limites assumées
 
-- Phase 0 (cadrage) et Phase 1 (ablation) : terminées et validées sur GPU réel.
-- Phase 2 (mesure capacité/refus) : outillage fonctionnel et validé mécaniquement, mais **aucun résultat chiffré fiable à ce jour**. La contrainte thermique de la machine impose de revoir la stratégie d'exécution (limiter GSM8K, échelonner les runs, ou réduire le nombre d'échantillons par session).
+- Phase 0 (cadrage) : terminée.
+- Phase 1 (ablation) : pipeline corrigé et couvert par des tests de non-régression, mais **aucun résultat chiffré valide à ce jour**. Le run complet doit être relancé avec le correctif.
+- Phase 2 (mesure capacité/refus) : outillage fonctionnel (refonte plus légère : HellaSwag + plusieurs sujets MMLU par défaut, GSM8K optionnel et limité pour éviter la surchauffe ; intervalle de confiance de Wilson sur le taux de refus), mais dépend d'un modèle ablaté valide, donc pas encore exécuté avec le correctif.
 - Phase 3 (détection d'un modèle ablaté, volet défensif) et Phase 4 (packaging final) : non commencées.
 
 ## Prochaines étapes
 
-1. Relancer la mesure Phase 2 en sessions plus courtes (par exemple limiter GSM8K à 20 échantillons, ou le retirer temporairement au profit de HellaSwag/MMLU qui sont nettement moins coûteux) pour rester sous le seuil d'extinction thermique.
-2. Une fois des chiffres fiables obtenus, produire la figure signature du projet : taux de refus résiduel vs score de capacité, pour visualiser le compromis réel plutôt que de le supposer.
-3. Volet défensif (Phase 3) : probing sur les activations pour détecter qu'un modèle donné a été ablaté.
+1. Relancer le pipeline Phase 1 complet avec le correctif, pour obtenir un modèle ablaté réellement fonctionnel.
+2. Relancer la mesure Phase 2 (HellaSwag + MMLU par défaut, GSM8K optionnel en petit échantillon) sur ce modèle, avec vérification systématique de cohérence du texte généré avant toute interprétation des scores.
+3. Une fois des chiffres fiables obtenus, produire la figure signature du projet : taux de refus résiduel vs score de capacité.
+4. Volet défensif (Phase 3) : probing sur les activations pour détecter qu'un modèle donné a été ablaté.
+
+## Leçon retenue
+
+Le bug le plus coûteux de ce projet n'était pas dans la partie « intelligente » (calcul de la direction de refus), mais dans l'absence de garde-fou sur une métrique d'évaluation trop naïve : une chaîne vide ne contient aucune des phrases de refus recherchées, donc elle passait pour un succès. Rétrospectivement, la rigueur méthodologique (vérifier qu'un modèle produit toujours une sortie cohérente avant d'interpréter un score) aurait dû être mise en place dès la Phase 1, pas seulement pour la Phase 2.
