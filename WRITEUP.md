@@ -64,27 +64,34 @@ Corrections apportées :
 
 ## Résultats obtenus
 
-### Phase 1 : ablation complète (résultat initial invalidé, à refaire avec le correctif)
+### Phase 1 : ablation complète (rejouée avec le correctif, validée)
 
-Un premier run complet avec la configuration par défaut (256 instructions d'entraînement, 32 de test, 20 directions candidates, ~1h05 de calcul) avait annoncé un taux de refus résiduel de 0,00 % dès la première direction testée. Ce résultat s'est révélé être un artefact du bug décrit ci-dessus (obstacle 8) : la direction retenue était NaN, et le modèle ne générait plus rien d'exploitable. Le pipeline a depuis été corrigé ; ce run doit être refait avant de pouvoir citer un chiffre.
+Premier run (avant correctif) : configuration par défaut, 20 directions candidates, ~1h05 de calcul. Avait annoncé un taux de refus résiduel de 0,00 % dès la première direction testée (candidat #0). Ce résultat était un artefact du bug décrit ci-dessus (obstacle 8) : la direction retenue était NaN, le modèle ne générait plus rien d'exploitable. **Invalidé, retiré.**
 
-### Phase 2 : mesure capacité vs refus (non concluante)
+Second run (après correctif), même configuration (256 instructions d'entraînement, 32 de test, 20 directions candidates), durée comparable (~40 minutes pour le scoring des directions) :
 
-Les premiers chiffres obtenus (contraste marqué entre modèle original et modèle « ablaté » sur HellaSwag) reflétaient en réalité la même corruption : un modèle qui ne génère que des tokens `<unk>` obtient logiquement 0 sur toute tâche de capacité. Ces chiffres sont retirés de ce document, ils ne mesuraient rien de réel.
+- Direction retenue : **candidat #4** (et non plus #0 : le classement change une fois la couche 0 dégénérée exclue).
+- Taux de refus résiduel sur les 32 instructions de test : **0,00 %**.
+- Taux de générations dégénérées (texte vide/trop court) sur ces mêmes 32 instructions : **0,00 %**, ce qui confirme qu'il ne s'agit pas d'un nouveau cas de corruption.
+- Vérification directe des poids sauvegardés : **0 tenseur sur 458 contient un NaN ou un Inf** (contre 53/458 entièrement NaN sur le run précédent).
+- Test de cohérence qualitatif (« Quelle est la capitale de la France ? ») : réponse correcte et cohérente (*« The capital of France is Paris. »*), confirmant que le modèle raisonne toujours normalement sur une question neutre.
+
+### Phase 2 : mesure capacité vs refus (outillage prêt, pas encore exécutée sur le modèle corrigé)
+
+Les premiers chiffres obtenus lors des smoke tests (contraste HellaSwag entre modèle original et modèle « ablaté ») reflétaient la même corruption que la Phase 1 : un modèle qui ne génère que des tokens `<unk>` obtient logiquement 0 sur toute tâche de capacité. Ces chiffres ont été retirés, ils ne mesuraient rien de réel. L'outillage (refonte plus légère : HellaSwag + plusieurs sujets MMLU par défaut, GSM8K optionnel et limité pour éviter la surchauffe ; intervalle de confiance de Wilson sur le taux de refus) est prêt et validé mécaniquement, mais n'a pas encore tourné sur le modèle ablaté corrigé.
 
 ## État actuel et limites assumées
 
 - Phase 0 (cadrage) : terminée.
-- Phase 1 (ablation) : pipeline corrigé et couvert par des tests de non-régression, mais **aucun résultat chiffré valide à ce jour**. Le run complet doit être relancé avec le correctif.
-- Phase 2 (mesure capacité/refus) : outillage fonctionnel (refonte plus légère : HellaSwag + plusieurs sujets MMLU par défaut, GSM8K optionnel et limité pour éviter la surchauffe ; intervalle de confiance de Wilson sur le taux de refus), mais dépend d'un modèle ablaté valide, donc pas encore exécuté avec le correctif.
+- Phase 1 (ablation) : **terminée et validée**, pipeline corrigé, couvert par des tests de non-régression, résultat rejoué et vérifié (poids sains, sortie cohérente).
+- Phase 2 (mesure capacité/refus) : outillage prêt, reste à exécuter sur le modèle ablaté corrigé.
 - Phase 3 (détection d'un modèle ablaté, volet défensif) et Phase 4 (packaging final) : non commencées.
 
 ## Prochaines étapes
 
-1. Relancer le pipeline Phase 1 complet avec le correctif, pour obtenir un modèle ablaté réellement fonctionnel.
-2. Relancer la mesure Phase 2 (HellaSwag + MMLU par défaut, GSM8K optionnel en petit échantillon) sur ce modèle, avec vérification systématique de cohérence du texte généré avant toute interprétation des scores.
-3. Une fois des chiffres fiables obtenus, produire la figure signature du projet : taux de refus résiduel vs score de capacité.
-4. Volet défensif (Phase 3) : probing sur les activations pour détecter qu'un modèle donné a été ablaté.
+1. Lancer la mesure Phase 2 (HellaSwag + MMLU par défaut, GSM8K optionnel en petit échantillon) sur le modèle ablaté corrigé.
+2. Produire la figure signature du projet : taux de refus résiduel vs score de capacité.
+3. Volet défensif (Phase 3) : probing sur les activations pour détecter qu'un modèle donné a été ablaté.
 
 ## Leçon retenue
 
