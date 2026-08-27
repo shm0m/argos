@@ -2,6 +2,8 @@
 
 **Agentic Red-teaming & Guardrail-stripped Offensive System**
 
+[![CI](https://github.com/shm0m/argos/actions/workflows/ci.yml/badge.svg)](https://github.com/shm0m/argos/actions/workflows/ci.yml)
+
 ARGOS étudie comment le comportement de refus d'un LLM open-weight est encodé dans son espace d'activation, et dans quelle mesure on peut le neutraliser (*abliteration*) **sans dégrader sa capacité de raisonnement**.
 
 La technique d'abliteration (Arditi et al., 2024 ; Labonne, 2024) montre qu'une direction unique du residual stream porte l'essentiel du comportement de refus, et que l'orthogonaliser suffit à le supprimer. Les implémentations existantes s'arrêtent à la démonstration : elles suppriment le refus, constatent une perte de performance, et la compensent après coup par un fine-tuning DPO correctif.
