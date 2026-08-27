@@ -1,4 +1,10 @@
-from argos.eval.refusal import degenerate_rate, is_degenerate, refusal_rate, refusal_stats, wilson_ci
+from argos.eval.refusal import (
+    degenerate_rate,
+    is_degenerate,
+    refusal_rate,
+    refusal_stats,
+    wilson_ci,
+)
 
 
 def test_refusal_rate_detects_blacklisted_phrases():

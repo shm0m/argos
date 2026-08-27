@@ -12,5 +12,5 @@ def test_classify_flags_near_zero_projection_as_ablated():
 def test_classify_does_not_flag_similar_projection():
     baseline = {"mean_projection": 4.2}
     candidate = {"mean_projection": 3.9}
-    ratio, flagged = classify(baseline, candidate)
+    _ratio, flagged = classify(baseline, candidate)
     assert not flagged

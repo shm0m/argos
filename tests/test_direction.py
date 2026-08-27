@@ -1,7 +1,10 @@
 import torch
 
 from argos.config import ArgosConfig
-from argos.direction import compute_refusal_directions, compute_refusal_directions_indexed
+from argos.direction import (
+    compute_refusal_directions,
+    compute_refusal_directions_indexed,
+)
 
 
 def _config():

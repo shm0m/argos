@@ -3,7 +3,6 @@ from tqdm import tqdm
 
 from argos.activations import get_layers, tokenize_instructions
 
-
 MIN_DIRECTION_NORM = 1e-4
 
 
