@@ -128,20 +128,32 @@ Test sur un modèle ablaté fraîchement généré (couche 18, celle qui atteint
 
 Ratio ablaté/original : 0,0003. Seuil de détection (20 %) largement franchi, le modèle est correctement signalé comme ablaté.
 
-**Limite assumée et importante** : ce résultat valide que la mécanique fonctionne comme prévu, mais ne prouve pas grand-chose de nouveau en soi, l'orthogonalisation *garantit* mathématiquement une projection nulle sur la direction utilisée. Le détecteur actuel suppose connue la direction exacte ayant servi à l'ablation, un scénario réaliste seulement si on soupçonne un modèle précis d'avoir été modifié par une technique qu'on peut reproduire soi-même. Le problème réellement difficile, détecter qu'un modèle a été ablaté par une direction *inconnue*, n'est pas résolu par cet outil et reste en suspens.
+**Limite assumée et importante** : ce résultat valide que la mécanique fonctionne comme prévu, mais ne prouve pas grand-chose de nouveau en soi, l'orthogonalisation *garantit* mathématiquement une projection nulle sur la direction utilisée. Le détecteur suppose connue la direction exacte ayant servi à l'ablation, un scénario réaliste seulement si on soupçonne un modèle précis d'avoir été modifié par une technique qu'on peut reproduire soi-même.
+
+### Phase 3 (suite) : détection à direction inconnue
+
+Le vrai problème défensif ne suppose pas de connaître la direction utilisée par l'attaquant. L'idée retenue : plutôt que de recevoir un vecteur, le défenseur peut **redériver lui-même** un profil de référence, à partir d'un modèle de la même famille dont il fait confiance à l'intégrité, et comparer ce profil à celui du modèle suspect.
+
+`argos-detect-blind` calcule, pour chaque couche, la norme de la différence de moyennes nuisible/bénin (le même calcul qu'en Phase 1, mais sans la normaliser ni sélectionner une seule couche). Un modèle non altéré a normalement cette norme qui croît en profondeur, comme observé dans le balayage. Il fait ce calcul à la fois sur un modèle de référence et sur le modèle suspect, puis compare les deux profils.
+
+**Premier essai raté, instructif** : la première version cherchait un pic isolé, une couche dont la norme chute brutalement par rapport à ses voisines immédiates. Testée sur un modèle ablaté à couche connue (couche 18), elle n'a signalé **aucune anomalie**. En traçant le rapport candidat/référence couche par couche, la réalité est différente d'un pic : le rapport descend progressivement de ~0,97 (couches précoces) jusqu'à un plateau bas (~0,41-0,46) à partir de la couche 14 environ, sans redescendre brutalement puis remonter. La cause, en relisant `ablate.py` : l'ablation ne modifie pas seulement la couche où la direction a été mesurée, elle édite les poids de **toutes** les couches (`o_proj` et `mlp.down_proj` de chaque bloc, plus `embed_tokens`) avec ce même vecteur. La couche 18 n'est que le point de mesure, pas le point d'application : l'empreinte sur le profil de normes est donc une baisse soutenue en aval, pas une entaille ponctuelle.
+
+Détecteur corrigé : chaque couche est comparée à une ligne de base prise sur les toutes premières couches (où le rapport candidat/référence est proche de 1 en l'absence d'altération), et signalée si son rapport chute nettement en dessous. Revalidé sur les mêmes données (sans reconsommer de calcul GPU, juste rejouées) : la plage signalée (couches 14 à 25) englobe correctement la couche de mesure réelle (18), sans jamais signaler de couche précoce ni un modèle simplement mis à l'échelle différemment (testé unitairement).
+
+**Limites qui restent** : validé sur un seul cas (une couche connue, un seul modèle candidat) ; suppose l'accès à un modèle de référence de confiance de la même famille ; le seuil de détection (rapport < 70 % de la ligne de base) n'a pas été calibré sur plusieurs couches d'ablation ni sur un modèle réellement propre pour mesurer le taux de faux positifs.
 
 ## État actuel et limites assumées
 
 - Phase 0 (cadrage) : terminée.
 - Phase 1 (ablation) : **terminée et validée**, pipeline corrigé, couvert par des tests de non-régression, résultat rejoué et vérifié (poids sains, sortie cohérente).
 - Phase 2 (mesure capacité/refus) : **terminée**, y compris le balayage multi-couches : refus quasi éliminé aux couches médianes, aucune perte de capacité détectable à aucune profondeur.
-- Phase 3 (détection d'un modèle ablaté, volet défensif) : **MVP validé** sur direction connue ; détection à direction inconnue non résolue.
-- Phase 4 (packaging final) : non commencée.
+- Phase 3 (détection d'un modèle ablaté, volet défensif) : **terminée pour un MVP à deux niveaux**, direction connue (`argos-detect`) et direction inconnue par comparaison de profils (`argos-detect-blind`), tous deux validés sur cas réel.
+- Phase 4 (packaging) : **terminée**, README à jour, CI (lint + tests), démo interactive (`argos.server`), write-up complet.
 
 ## Prochaines étapes
 
-1. Étendre la détection à un scénario plus réaliste : reconnaître qu'un modèle a été ablaté sans connaître à l'avance la direction utilisée (probablement via une direction de référence recalculée sur un modèle de la même famille, ou une mesure de forme de distribution plutôt qu'une projection ciblée).
-2. Packaging final (Phase 4) : notebook de démonstration, nettoyage du dépôt pour en faire une vitrine GitHub.
+1. Calibrer `argos-detect-blind` sur plusieurs couches d'ablation et sur un vrai modèle non altéré, pour mesurer un taux de faux positifs plutôt qu'un seul cas de validation.
+2. Étendre le balayage (Phase 2) à des directions combinées ou à des forces d'ablation partielles, pour affiner la figure signature au-delà de l'ablation complète par couche.
 
 ## Leçon retenue
 
