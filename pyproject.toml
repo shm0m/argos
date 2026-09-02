@@ -28,6 +28,7 @@ argos = "argos.cli:main"
 argos-measure = "argos.measure:main"
 argos-sweep = "argos.sweep:main"
 argos-detect = "argos.detect:main"
+argos-detect-blind = "argos.detect_blind:main"
 argos-demo = "argos.server:main"
 
 [build-system]

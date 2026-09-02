@@ -23,6 +23,17 @@ def compute_refusal_directions_indexed(harmful_acts, harmless_acts, config):
     return results
 
 
+def compute_direction_norms(harmful_acts, harmless_acts, config):
+    norms = []
+    for act_name in config.selected_layers:
+        for layer_idx in sorted(harmful_acts[act_name]):
+            harmful_mean = harmful_acts[act_name][layer_idx].mean(dim=0)
+            harmless_mean = harmless_acts[act_name][layer_idx].mean(dim=0)
+            norm = (harmful_mean - harmless_mean).norm().item()
+            norms.append((act_name, layer_idx, norm))
+    return norms
+
+
 def compute_refusal_directions(harmful_acts, harmless_acts, config):
     indexed = compute_refusal_directions_indexed(harmful_acts, harmless_acts, config)
     directions = [direction for _, _, direction in indexed]
