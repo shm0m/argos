@@ -5,14 +5,16 @@ def _profile(norms):
     return {("resid_pre", i): n for i, n in enumerate(norms)}
 
 
-def test_flags_localized_dip_at_one_layer():
-    reference = _profile([1.0, 2.0, 3.0, 4.0, 5.0, 4.0, 3.0])
-    candidate = _profile([1.0, 2.0, 3.0, 0.05, 5.0, 4.0, 3.0])
+def test_flags_sustained_drop_after_a_point():
+    reference = _profile([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0])
+    candidate = _profile([1.0, 2.0, 3.0, 1.6, 2.0, 2.4, 2.8])
 
     anomalies = find_anomalous_layers(reference, candidate)
 
-    assert len(anomalies) == 1
-    assert anomalies[0]["layer"] == 3
+    flagged_layers = {a["layer"] for a in anomalies}
+    assert 4 in flagged_layers
+    assert 0 not in flagged_layers
+    assert 1 not in flagged_layers
 
 
 def test_no_anomaly_on_identical_profiles():

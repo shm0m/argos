@@ -33,34 +33,39 @@ def collect_norm_profile(model_path, config):
     return {(act_name, layer_idx): norm for act_name, layer_idx, norm in norms}
 
 
-def find_anomalous_layers(reference_profile, candidate_profile, drop_ratio=0.3, min_reference_norm=0.5):
-    anomalies = []
+def find_anomalous_layers(reference_profile, candidate_profile, drop_ratio=0.7, min_reference_norm=0.5, baseline_layers=3):
+    """Flague les couches dont le rapport candidat/reference chute bien en dessous
+    du rapport observe sur les toutes premieres couches.
+
+    L'ablation edite les poids de TOUTES les couches avec une seule direction (mesuree
+    a une couche donnee) : son empreinte sur le profil de normes n'est donc pas un pic
+    isole a cette couche, mais une baisse progressive qui s'installe et se maintient a
+    partir d'un certain point du reseau. On compare chaque couche a une ligne de base
+    "sans alteration" prise sur les premieres couches, plutot qu'a ses seuls voisins
+    immediats.
+    """
     keys = sorted(reference_profile.keys(), key=lambda k: k[1])
+    valid = [
+        k for k in keys if reference_profile[k] >= min_reference_norm and candidate_profile.get(k) is not None
+    ]
+    if not valid:
+        return []
 
-    for i, key in enumerate(keys):
-        ref_norm = reference_profile[key]
-        cand_norm = candidate_profile.get(key)
-        if cand_norm is None or ref_norm < min_reference_norm:
-            continue
+    ratios = {k: candidate_profile[k] / reference_profile[k] for k in valid}
+    baseline_keys = valid[:baseline_layers]
+    baseline = sum(ratios[k] for k in baseline_keys) / len(baseline_keys)
 
-        ratio = cand_norm / ref_norm
-
-        neighbors = [keys[j] for j in (i - 1, i + 1) if 0 <= j < len(keys)]
-        neighbor_ratios = [
-            candidate_profile[n] / reference_profile[n]
-            for n in neighbors
-            if reference_profile[n] >= min_reference_norm and candidate_profile.get(n) is not None
-        ]
-        local_baseline = sum(neighbor_ratios) / len(neighbor_ratios) if neighbor_ratios else 1.0
-
-        if ratio < drop_ratio and ratio < local_baseline * drop_ratio:
+    anomalies = []
+    for key in valid:
+        if ratios[key] < baseline * drop_ratio:
             anomalies.append(
                 {
                     "act_name": key[0],
                     "layer": key[1],
-                    "reference_norm": ref_norm,
-                    "candidate_norm": cand_norm,
-                    "ratio": ratio,
+                    "reference_norm": reference_profile[key],
+                    "candidate_norm": candidate_profile[key],
+                    "ratio": ratios[key],
+                    "baseline_ratio": baseline,
                 }
             )
 
@@ -72,7 +77,7 @@ def main():
     parser.add_argument("--config", default="configs/ministral-3b.yaml")
     parser.add_argument("--reference", required=True)
     parser.add_argument("--candidate", required=True)
-    parser.add_argument("--drop-ratio", type=float, default=0.3)
+    parser.add_argument("--drop-ratio", type=float, default=0.7)
     parser.add_argument("--output", default="results/phase3_detect_blind.json")
     args = parser.parse_args()
 
