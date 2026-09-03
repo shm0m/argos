@@ -1,0 +1,98 @@
+<svg viewBox="0 0 820 420" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Taux de refus residuel et capacite HellaSwag en fonction de la couche ablatee, sur 8 couches reparties de 1 a 25">
+  <style>
+    :root { color-scheme: light dark; }
+    .bg { fill: #f4f5f2; }
+    .grid { stroke: #d6d8d0; stroke-width: 1; }
+    .axis { stroke: #8b9082; stroke-width: 1.2; }
+    .ink { fill: #1c1f1b; }
+    .muted { fill: #5b5f55; }
+    .harm-line { stroke: #a3392d; stroke-width: 2.5; fill: none; }
+    .harm-dot { fill: #a3392d; }
+    .safe-line { stroke: #26635f; stroke-width: 2.5; fill: none; }
+    .safe-dot { fill: #26635f; }
+    text { font-family: 'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif; }
+    .mono { font-family: 'IBM Plex Mono', Consolas, monospace; }
+    @media (prefers-color-scheme: dark) {
+      .bg { fill: #14170f; }
+      .grid { stroke: #2c3123; }
+      .axis { stroke: #6f7566; }
+      .ink { fill: #e9eae3; }
+      .muted { fill: #a3a897; }
+      .harm-line { stroke: #e2604f; }
+      .harm-dot { fill: #e2604f; }
+      .safe-line { stroke: #5cbdb7; }
+      .safe-dot { fill: #5cbdb7; }
+    }
+  </style>
+
+  <rect class="bg" x="0" y="0" width="820" height="420"/>
+
+  <!-- gridlines + y labels (0-100%) -->
+  <g class="mono">
+    <line class="grid" x1="60" y1="340" x2="760" y2="340"/>
+    <line class="grid" x1="60" y1="265" x2="760" y2="265"/>
+    <line class="grid" x1="60" y1="190" x2="760" y2="190"/>
+    <line class="grid" x1="60" y1="115" x2="760" y2="115"/>
+    <line class="grid" x1="60" y1="40" x2="760" y2="40"/>
+    <text class="muted" x="48" y="344" font-size="11" text-anchor="end">0%</text>
+    <text class="muted" x="48" y="269" font-size="11" text-anchor="end">25%</text>
+    <text class="muted" x="48" y="194" font-size="11" text-anchor="end">50%</text>
+    <text class="muted" x="48" y="119" font-size="11" text-anchor="end">75%</text>
+    <text class="muted" x="48" y="44" font-size="11" text-anchor="end">100%</text>
+  </g>
+
+  <line class="axis" x1="60" y1="340" x2="760" y2="340"/>
+  <line class="axis" x1="60" y1="40" x2="60" y2="340"/>
+
+  <!-- x ticks -->
+  <g class="mono">
+    <text class="muted" x="86.9" y="360" font-size="11" text-anchor="middle">1</text>
+    <text class="muted" x="167.7" y="360" font-size="11" text-anchor="middle">4</text>
+    <text class="muted" x="275.4" y="360" font-size="11" text-anchor="middle">8</text>
+    <text class="muted" x="356.2" y="360" font-size="11" text-anchor="middle">11</text>
+    <text class="muted" x="463.8" y="360" font-size="11" text-anchor="middle">15</text>
+    <text class="muted" x="544.6" y="360" font-size="11" text-anchor="middle">18</text>
+    <text class="muted" x="652.3" y="360" font-size="11" text-anchor="middle">22</text>
+    <text class="muted" x="733.1" y="360" font-size="11" text-anchor="middle">25</text>
+    <text class="muted" x="410" y="392" font-size="12" text-anchor="middle" letter-spacing="0.04em">COUCHE ABLATEE (SUR 26)</text>
+  </g>
+
+  <!-- HellaSwag acc_norm line (capacite, reste haut et plat) -->
+  <polyline class="safe-line" points="86.9,163 167.7,130 275.4,136 356.2,139 463.8,142 544.6,139 652.3,139 733.1,136"/>
+  <g class="safe-dot">
+    <circle cx="86.9" cy="163" r="4.5"/>
+    <circle cx="167.7" cy="130" r="4.5"/>
+    <circle cx="275.4" cy="136" r="4.5"/>
+    <circle cx="356.2" cy="139" r="4.5"/>
+    <circle cx="463.8" cy="142" r="4.5"/>
+    <circle cx="544.6" cy="139" r="4.5"/>
+    <circle cx="652.3" cy="139" r="4.5"/>
+    <circle cx="733.1" cy="136" r="4.5"/>
+  </g>
+
+  <!-- Refusal rate line (descend puis remonte) -->
+  <polyline class="harm-line" points="86.9,283.6 167.7,246.4 275.4,255.7 356.2,330.7 463.8,340 544.6,340 652.3,330.7 733.1,302.5"/>
+  <g class="harm-dot">
+    <circle cx="86.9" cy="283.6" r="4.5"/>
+    <circle cx="167.7" cy="246.4" r="4.5"/>
+    <circle cx="275.4" cy="255.7" r="4.5"/>
+    <circle cx="356.2" cy="330.7" r="4.5"/>
+    <circle cx="463.8" cy="340" r="4.5"/>
+    <circle cx="544.6" cy="340" r="4.5"/>
+    <circle cx="652.3" cy="330.7" r="4.5"/>
+    <circle cx="733.1" cy="302.5" r="4.5"/>
+  </g>
+
+  <!-- legend -->
+  <g class="mono">
+    <line class="harm-line" x1="590" y1="60" x2="614" y2="60"/>
+    <circle class="harm-dot" cx="602" cy="60" r="4"/>
+    <text class="ink" x="622" y="64" font-size="12">taux de refus residuel</text>
+
+    <line class="safe-line" x1="590" y1="82" x2="614" y2="82"/>
+    <circle class="safe-dot" cx="602" cy="82" r="4"/>
+    <text class="ink" x="622" y="86" font-size="12">HellaSwag acc_norm</text>
+  </g>
+
+  <text class="ink" x="60" y="20" font-size="14" font-weight="600">Refus vs capacite, par couche ablatee (Ministral-3-3B)</text>
+</svg>
