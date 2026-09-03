@@ -1,11 +1,16 @@
 import argparse
+from threading import Thread
 
 import torch
 import uvicorn
 from fastapi import FastAPI
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, StreamingResponse
 from pydantic import BaseModel
-from transformers import AutoModelForImageTextToText, AutoTokenizer
+from transformers import (
+    AutoModelForImageTextToText,
+    AutoTokenizer,
+    TextIteratorStreamer,
+)
 
 app = FastAPI()
 
@@ -19,6 +24,55 @@ class ChatRequest(BaseModel):
 
 class ChatResponse(BaseModel):
     reply: str
+    truncated: bool = False
+
+
+MAX_NEW_TOKENS = 2048
+TRUNCATION_MARKER = "<<<TRUNCATED>>>"
+
+
+@app.post("/api/chat/stream")
+def chat_stream(req: ChatRequest):
+    model = _state["model"]
+    tokenizer = _state["tokenizer"]
+    device = _state["device"]
+
+    messages = list(req.history) + [{"role": "user", "content": req.message}]
+
+    tokens = tokenizer.apply_chat_template(
+        [messages],
+        padding=True,
+        return_tensors="pt",
+        return_dict=True,
+        add_generation_prompt=True,
+    ).input_ids.to(device)
+
+    streamer = TextIteratorStreamer(tokenizer, skip_prompt=True, skip_special_tokens=True)
+    generated_len = {"n": 0}
+
+    def run_generation():
+        with torch.no_grad():
+            output = model.generate(
+                tokens,
+                max_new_tokens=MAX_NEW_TOKENS,
+                do_sample=True,
+                temperature=0.7,
+                top_p=0.9,
+                pad_token_id=tokenizer.pad_token_id,
+                streamer=streamer,
+            )
+        generated_len["n"] = output.shape[1] - tokens.shape[1]
+
+    thread = Thread(target=run_generation)
+    thread.start()
+
+    def event_stream():
+        yield from streamer
+        thread.join()
+        if generated_len["n"] >= MAX_NEW_TOKENS:
+            yield TRUNCATION_MARKER
+
+    return StreamingResponse(event_stream(), media_type="text/plain; charset=utf-8")
 
 
 @app.post("/api/chat", response_model=ChatResponse)
@@ -40,15 +94,17 @@ def chat(req: ChatRequest):
     with torch.no_grad():
         output = model.generate(
             tokens,
-            max_new_tokens=512,
+            max_new_tokens=MAX_NEW_TOKENS,
             do_sample=True,
             temperature=0.7,
             top_p=0.9,
             pad_token_id=tokenizer.pad_token_id,
         )
 
-    reply = tokenizer.decode(output[0, tokens.shape[1]:], skip_special_tokens=True)
-    return ChatResponse(reply=reply)
+    generated = output[0, tokens.shape[1]:]
+    reply = tokenizer.decode(generated, skip_special_tokens=True)
+    truncated = generated.shape[0] >= MAX_NEW_TOKENS
+    return ChatResponse(reply=reply, truncated=truncated)
 
 
 @app.get("/api/info")
@@ -79,7 +135,7 @@ HTML_PAGE = """<!doctype html>
     --ink-muted: #56575c;
     --ink-faint: #8b8c91;
     --line: #d1d2d6;
-    --accent: #cc2b2b;
+    --accent: #7c3aed;
     --online: #1f9d55;
     --font-display: 'Fraunces', Georgia, serif;
     --font-body: 'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif;
@@ -94,7 +150,7 @@ HTML_PAGE = """<!doctype html>
       --ink-muted: #9a9ba0;
       --ink-faint: #6a6b70;
       --line: #2a2b2e;
-      --accent: #ff4c4c;
+      --accent: #b388ff;
       --online: #3ddc73;
     }
   }
@@ -291,6 +347,14 @@ HTML_PAGE = """<!doctype html>
     padding: 0.1em 0 0.1em 1em;
     color: var(--ink-muted);
   }
+  .truncated-note {
+    font-family: var(--font-mono);
+    font-size: 0.76rem;
+    color: var(--accent);
+    margin-top: 0.6em;
+    padding-top: 0.6em;
+    border-top: 1px dashed var(--line);
+  }
 
   .thinking .bubble { color: var(--ink-faint); font-style: italic; }
   .dots span {
@@ -424,6 +488,16 @@ HTML_PAGE = """<!doctype html>
     return DOMPurify.sanitize(html);
   }
 
+  function setAssistantContent(bubble, text, truncated) {
+    bubble.innerHTML = renderMarkdown(text);
+    if (truncated) {
+      const note = document.createElement('div');
+      note.className = 'truncated-note';
+      note.textContent = 'reponse tronquee, limite de longueur atteinte';
+      bubble.appendChild(note);
+    }
+  }
+
   function addMessage(role, text) {
     const msg = document.createElement('div');
     msg.className = 'msg ' + role;
@@ -433,7 +507,7 @@ HTML_PAGE = """<!doctype html>
     const bubble = document.createElement('div');
     bubble.className = 'bubble';
     if (role === 'assistant') {
-      bubble.innerHTML = renderMarkdown(text);
+      setAssistantContent(bubble, text, false);
     } else {
       bubble.textContent = text;
     }
@@ -465,6 +539,8 @@ HTML_PAGE = """<!doctype html>
     if (el) el.remove();
   }
 
+  const TRUNCATION_MARKER = '<<<TRUNCATED>>>';
+
   async function submit() {
     const text = input.value.trim();
     if (!text) return;
@@ -476,17 +552,35 @@ HTML_PAGE = """<!doctype html>
     addMessage('user', text);
     addThinking();
 
+    let bubble = null;
+    let accumulated = '';
+
     try {
-      const res = await fetch('/api/chat', {
+      const res = await fetch('/api/chat/stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: text, history })
       });
-      const data = await res.json();
-      removeThinking();
-      addMessage('assistant', data.reply);
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (!bubble) {
+          removeThinking();
+          bubble = addMessage('assistant', '');
+        }
+        accumulated += decoder.decode(value, { stream: true });
+        const truncated = accumulated.includes(TRUNCATION_MARKER);
+        const display = truncated ? accumulated.split(TRUNCATION_MARKER)[0] : accumulated;
+        setAssistantContent(bubble, display, truncated);
+        thread.parentElement.scrollTop = thread.parentElement.scrollHeight;
+      }
+
+      const finalText = accumulated.split(TRUNCATION_MARKER)[0];
       history.push({ role: 'user', content: text });
-      history.push({ role: 'assistant', content: data.reply });
+      history.push({ role: 'assistant', content: finalText });
     } catch (e) {
       removeThinking();
       addMessage('assistant', 'Erreur : impossible de contacter le modele.');

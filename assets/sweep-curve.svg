@@ -6,8 +6,8 @@
     .axis { stroke: #8b8c91; stroke-width: 1.2; }
     .ink { fill: #18191b; }
     .muted { fill: #56575c; }
-    .harm-line { stroke: #cc2b2b; stroke-width: 2.5; fill: none; }
-    .harm-dot { fill: #cc2b2b; }
+    .harm-line { stroke: #7c3aed; stroke-width: 2.5; fill: none; }
+    .harm-dot { fill: #7c3aed; }
     .safe-line { stroke: #3f4044; stroke-width: 2.5; fill: none; }
     .safe-dot { fill: #3f4044; }
     text { font-family: 'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif; }
@@ -18,8 +18,8 @@
       .axis { stroke: #6a6b70; }
       .ink { fill: #ededee; }
       .muted { fill: #9a9ba0; }
-      .harm-line { stroke: #ff4c4c; }
-      .harm-dot { fill: #ff4c4c; }
+      .harm-line { stroke: #b388ff; }
+      .harm-dot { fill: #b388ff; }
       .safe-line { stroke: #d5d6da; }
       .safe-dot { fill: #d5d6da; }
     }
