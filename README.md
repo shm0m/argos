@@ -127,6 +127,10 @@ python -m argos.detect_blind --reference <model_id> --candidate results/ablated-
 
 # Interface de chat locale pour tester le modele ablate
 python -m argos.server --model results/ablated-model
+
+# Idem, avec comparaison cote a cote face au modele original
+# (echange les deux modeles en VRAM a la demande, --baseline optionnel)
+python -m argos.server --model results/ablated-model --baseline <model_id>
 ```
 
 ## Tests
