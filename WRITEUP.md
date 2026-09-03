@@ -140,7 +140,20 @@ Le vrai problème défensif ne suppose pas de connaître la direction utilisée 
 
 Détecteur corrigé : chaque couche est comparée à une ligne de base prise sur les toutes premières couches (où le rapport candidat/référence est proche de 1 en l'absence d'altération), et signalée si son rapport chute nettement en dessous. Revalidé sur les mêmes données (sans reconsommer de calcul GPU, juste rejouées) : la plage signalée (couches 14 à 25) englobe correctement la couche de mesure réelle (18), sans jamais signaler de couche précoce ni un modèle simplement mis à l'échelle différemment (testé unitairement).
 
-**Limites qui restent** : validé sur un seul cas (une couche connue, un seul modèle candidat) ; suppose l'accès à un modèle de référence de confiance de la même famille ; le seuil de détection (rapport < 70 % de la ligne de base) n'a pas été calibré sur plusieurs couches d'ablation ni sur un modèle réellement propre pour mesurer le taux de faux positifs.
+### Phase 5 : calibration sur plusieurs cas
+
+Le détecteur n'avait été validé que sur un seul cas (couche 18). Pour vérifier qu'il généralise, deux modèles ablatés supplémentaires ont été générés à des couches différentes (couche 8, couche 22, choisies aux extrémités du balayage Phase 2), plus un test de non-détection en comparant le modèle de référence à lui-même.
+
+| Candidat | Couche réelle d'ablation | Plage signalée par `argos-detect-blind` |
+|---|---|---|
+| Ablation couche 8 | 8 | couches 7 à 14 |
+| Ablation couche 18 | 18 | couches 14 à 25 |
+| Ablation couche 22 | 22 | couches 19 à 25 |
+| Modèle de référence (comparé à lui-même) | aucune | aucune (0 anomalie) |
+
+Sur les trois couches testées, la plage signalée englobe systématiquement la vraie couche de mesure. La comparaison du modèle de référence à lui-même ne déclenche aucune fausse alerte, un résultat attendu mais nécessaire à vérifier : le détecteur ne signale pas un modèle par défaut.
+
+**Limite qui reste, à ne pas minimiser** : le test de non-détection compare le modèle de référence à une copie identique de lui-même (mêmes poids, aucune source de variation indépendante), ce qui garantit un ratio de 1 partout par construction. Ce n'est pas un vrai test de taux de faux positifs (il faudrait un second modèle de la même famille, réellement distinct, jamais ablaté) mais un plancher minimal : le détecteur ne s'emballe pas sur un cas trivial. Un test de faux positifs statistiquement valable reste à faire.
 
 ## État actuel et limites assumées
 
@@ -149,10 +162,11 @@ Détecteur corrigé : chaque couche est comparée à une ligne de base prise sur
 - Phase 2 (mesure capacité/refus) : **terminée**, y compris le balayage multi-couches : refus quasi éliminé aux couches médianes, aucune perte de capacité détectable à aucune profondeur.
 - Phase 3 (détection d'un modèle ablaté, volet défensif) : **terminée pour un MVP à deux niveaux**, direction connue (`argos-detect`) et direction inconnue par comparaison de profils (`argos-detect-blind`), tous deux validés sur cas réel.
 - Phase 4 (packaging) : **terminée**, README à jour, CI (lint + tests), démo interactive (`argos.server`), write-up complet.
+- Phase 5 (calibration multi-cas) : **calibration partielle terminée** sur 3 couches d'ablation distinctes, toutes correctement bracketées, plus un test de non-détection minimal (modèle comparé à lui-même). Un vrai taux de faux positifs, mesuré sur un second modèle indépendant jamais ablaté, reste à faire.
 
 ## Prochaines étapes
 
-1. Calibrer `argos-detect-blind` sur plusieurs couches d'ablation et sur un vrai modèle non altéré, pour mesurer un taux de faux positifs plutôt qu'un seul cas de validation.
+1. Tester `argos-detect-blind` contre un second modèle de la même famille, réellement distinct et jamais ablaté, pour mesurer un vrai taux de faux positifs plutôt que le plancher minimal actuel.
 2. Étendre le balayage (Phase 2) à des directions combinées ou à des forces d'ablation partielles, pour affiner la figure signature au-delà de l'ablation complète par couche.
 
 ## Leçon retenue

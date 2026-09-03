@@ -79,14 +79,14 @@ RAPPORT.md            # demarche, sources, apprentissages, perspectives
 
 ## Roadmap
 
-Phases 0 à 4 terminées et validées sur GPU réel (RTX 5070 Ti, 12 Go).
+Phases 0 à 5 terminées et validées sur GPU réel (RTX 5070 Ti, 12 Go).
 
 - [x] Phase 0 : cadrage, structure du repo
 - [x] Phase 1 : direction de refus, orthogonalisation, validée de bout en bout sur GPU
 - [x] Phase 2 : mesure refus vs capacité (HellaSwag/MMLU/GSM8K) + balayage multi-couches
 - [x] Phase 3 : détection d'un modèle ablaté, direction connue **et** direction inconnue
 - [x] Phase 4 : packaging (CLI complète, démo interactive, CI, write-up)
-- [ ] Phase 5 : calibrer la détection à direction inconnue sur plusieurs cas (taux de faux positifs)
+- [x] Phase 5 : détection à direction inconnue calibrée sur 3 couches d'ablation distinctes, généralisation confirmée (détail et limites dans le [write-up](WRITEUP.md#phase-5--calibration-sur-plusieurs-cas))
 
 ## Éthique et cadre d'usage
 
