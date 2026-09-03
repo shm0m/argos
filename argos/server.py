@@ -286,7 +286,7 @@ HTML_PAGE = """<!doctype html>
 <main>
   <div id="thread">
     <div class="empty-state" id="empty-state">
-      Pose une question. Ce modele a subi une <strong>ablation de sa direction de refus</strong> &mdash;
+      Pose une question. Ce modele a subi une <strong>ablation de sa direction de refus</strong>,
       compare sa reponse a ce qu'un modele instruct standard aurait dit.
     </div>
   </div>
