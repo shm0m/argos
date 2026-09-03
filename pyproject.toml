@@ -1,7 +1,7 @@
 [project]
 name = "argos"
 version = "0.1.0"
-description = "Agentic Red-teaming & Guardrail-stripped Offensive System — mesure du compromis refus/raisonnement lors de l'abliteration de LLM."
+description = "Agentic Red-teaming & Guardrail-stripped Offensive System : mesure du compromis refus/raisonnement lors de l'abliteration de LLM."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
