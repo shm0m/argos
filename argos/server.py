@@ -29,15 +29,43 @@ class ChatResponse(BaseModel):
 
 MAX_NEW_TOKENS = 2048
 TRUNCATION_MARKER = "<<<TRUNCATED>>>"
+SECTION_ABLATED = "\x01ABLATED\x01"
+SECTION_BASELINE = "\x01BASELINE\x01"
+SECTION_LOADING = "\x01LOADING\x01"
+SECTION_END = "\x01END\x01"
 
 
-@app.post("/api/chat/stream")
-def chat_stream(req: ChatRequest):
+def load_model(path, dtype, device):
+    tokenizer = AutoTokenizer.from_pretrained(path)
+    tokenizer.padding_side = "left"
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
+
+    model = AutoModelForImageTextToText.from_pretrained(path, torch_dtype=dtype, device_map=device)
+    model.eval()
+    return model, tokenizer
+
+
+def ensure_active(which):
+    if _state.get("active") == which:
+        return
+    path = _state["ablated_path"] if which == "ablated" else _state["baseline_path"]
+
+    if "model" in _state:
+        del _state["model"]
+        torch.cuda.empty_cache()
+
+    model, tokenizer = load_model(path, _state["dtype"], _state["device_arg"])
+    _state["model"] = model
+    _state["tokenizer"] = tokenizer
+    _state["device"] = next(model.parameters()).device
+    _state["active"] = which
+
+
+def generate_stream(messages):
     model = _state["model"]
     tokenizer = _state["tokenizer"]
     device = _state["device"]
-
-    messages = list(req.history) + [{"role": "user", "content": req.message}]
 
     tokens = tokenizer.apply_chat_template(
         [messages],
@@ -66,17 +94,22 @@ def chat_stream(req: ChatRequest):
     thread = Thread(target=run_generation)
     thread.start()
 
-    def event_stream():
-        yield from streamer
-        thread.join()
-        if generated_len["n"] >= MAX_NEW_TOKENS:
-            yield TRUNCATION_MARKER
+    yield from streamer
+    thread.join()
+    if generated_len["n"] >= MAX_NEW_TOKENS:
+        yield TRUNCATION_MARKER
 
-    return StreamingResponse(event_stream(), media_type="text/plain; charset=utf-8")
+
+@app.post("/api/chat/stream")
+def chat_stream(req: ChatRequest):
+    ensure_active("ablated")
+    messages = list(req.history) + [{"role": "user", "content": req.message}]
+    return StreamingResponse(generate_stream(messages), media_type="text/plain; charset=utf-8")
 
 
 @app.post("/api/chat", response_model=ChatResponse)
 def chat(req: ChatRequest):
+    ensure_active("ablated")
     model = _state["model"]
     tokenizer = _state["tokenizer"]
     device = _state["device"]
@@ -107,9 +140,31 @@ def chat(req: ChatRequest):
     return ChatResponse(reply=reply, truncated=truncated)
 
 
+@app.post("/api/compare/stream")
+def compare_stream(req: ChatRequest):
+    if not _state.get("baseline_path"):
+        return StreamingResponse(iter([""]), media_type="text/plain; charset=utf-8", status_code=400)
+
+    messages = list(req.history) + [{"role": "user", "content": req.message}]
+
+    def event_stream():
+        ensure_active("ablated")
+        yield SECTION_ABLATED
+        yield from generate_stream(messages)
+        yield SECTION_END
+
+        yield SECTION_LOADING
+        ensure_active("baseline")
+        yield SECTION_BASELINE
+        yield from generate_stream(messages)
+        yield SECTION_END
+
+    return StreamingResponse(event_stream(), media_type="text/plain; charset=utf-8")
+
+
 @app.get("/api/info")
 def info():
-    return {"model_path": _state["model_path"]}
+    return {"model_path": _state["ablated_path"], "baseline_path": _state.get("baseline_path")}
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -209,6 +264,59 @@ HTML_PAGE = """<!doctype html>
     border-radius: 50%;
     background: var(--online);
     margin-right: 0.5rem;
+  }
+  #compare-toggle {
+    position: fixed;
+    top: 1.1rem;
+    right: 1.6rem;
+    z-index: 10;
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    color: var(--ink-muted);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 100px;
+    padding: 0.4rem 0.9rem 0.4rem 0.7rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    user-select: none;
+  }
+  #compare-toggle[hidden] { display: none; }
+  #compare-toggle input { accent-color: var(--accent); cursor: pointer; }
+  #compare-toggle.in-header { position: static; }
+
+  .compare-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    width: 100%;
+  }
+  .compare-col { min-width: 0; }
+  .compare-col .compare-label {
+    font-family: var(--font-mono);
+    font-size: 0.74rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin-bottom: 0.5rem;
+  }
+  .compare-col.is-ablated .compare-label { color: var(--accent); }
+  .compare-col .bubble {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    width: 100%;
+  }
+  .compare-loading {
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    color: var(--ink-faint);
+    font-style: italic;
+  }
+  @media (max-width: 640px) {
+    .compare-row { grid-template-columns: 1fr; }
   }
 
   main {
@@ -424,6 +532,11 @@ HTML_PAGE = """<!doctype html>
 </head>
 <body>
 
+<label id="compare-toggle" hidden>
+  <input type="checkbox" id="compare-checkbox">
+  Comparer avec l'original
+</label>
+
 <header id="header" hidden>
   <div class="brand">
     <h1>ARGOS</h1>
@@ -464,12 +577,21 @@ HTML_PAGE = """<!doctype html>
   const input = document.getElementById('input');
   const send = document.getElementById('send');
   const badge = document.getElementById('model-badge');
+  const compareToggle = document.getElementById('compare-toggle');
+  const compareCheckbox = document.getElementById('compare-checkbox');
 
   let history = [];
+  let baselineHistory = [];
   let started = false;
+  let hasBaseline = false;
 
   fetch('/api/info').then(r => r.json()).then(d => {
     badge.textContent = d.model_path;
+    if (d.baseline_path) {
+      hasBaseline = true;
+      compareToggle.hidden = false;
+      compareToggle.title = 'Original : ' + d.baseline_path;
+    }
   }).catch(() => { badge.textContent = 'modele indisponible'; });
 
   function enterChatMode() {
@@ -481,6 +603,8 @@ HTML_PAGE = """<!doctype html>
     footer.hidden = false;
     composerFooter.appendChild(input);
     composerFooter.appendChild(send);
+    compareToggle.classList.add('in-header');
+    header.insertBefore(compareToggle, badge);
   }
 
   function renderMarkdown(text) {
@@ -518,6 +642,42 @@ HTML_PAGE = """<!doctype html>
     return bubble;
   }
 
+  function addCompareRow() {
+    const msg = document.createElement('div');
+    msg.className = 'msg assistant';
+    msg.style.maxWidth = '100%';
+    msg.style.width = '100%';
+    const avatar = document.createElement('div');
+    avatar.className = 'avatar';
+    avatar.textContent = 'AI';
+    const row = document.createElement('div');
+    row.className = 'compare-row';
+
+    function makeCol(label, isAblated) {
+      const col = document.createElement('div');
+      col.className = 'compare-col' + (isAblated ? ' is-ablated' : '');
+      const lbl = document.createElement('div');
+      lbl.className = 'compare-label';
+      lbl.textContent = label;
+      const bubble = document.createElement('div');
+      bubble.className = 'bubble';
+      bubble.innerHTML = '<span class="compare-loading">en attente...</span>';
+      col.appendChild(lbl);
+      col.appendChild(bubble);
+      return { col, bubble };
+    }
+
+    const baseline = makeCol('Original (non ablate)', false);
+    const ablated = makeCol('Ablate (ARGOS)', true);
+    row.appendChild(baseline.col);
+    row.appendChild(ablated.col);
+    msg.appendChild(avatar);
+    msg.appendChild(row);
+    thread.appendChild(msg);
+    thread.parentElement.scrollTop = thread.parentElement.scrollHeight;
+    return { baselineBubble: baseline.bubble, ablatedBubble: ablated.bubble };
+  }
+
   function addThinking() {
     const msg = document.createElement('div');
     msg.className = 'msg assistant thinking';
@@ -540,18 +700,31 @@ HTML_PAGE = """<!doctype html>
   }
 
   const TRUNCATION_MARKER = '<<<TRUNCATED>>>';
+  const SECTION_ABLATED = '\x01ABLATED\x01';
+  const SECTION_BASELINE = '\x01BASELINE\x01';
+  const SECTION_LOADING = '\x01LOADING\x01';
+  const SECTION_END = '\x01END\x01';
 
-  async function submit() {
-    const text = input.value.trim();
-    if (!text) return;
-    enterChatMode();
-    input.value = '';
-    input.style.height = 'auto';
-    send.disabled = true;
+  function splitTruncated(raw) {
+    const truncated = raw.includes(TRUNCATION_MARKER);
+    const display = truncated ? raw.split(TRUNCATION_MARKER)[0] : raw;
+    return { display, truncated };
+  }
 
-    addMessage('user', text);
+  function extractSection(raw, startMarker, endMarkers) {
+    const startIdx = raw.indexOf(startMarker);
+    if (startIdx === -1) return null;
+    const contentStart = startIdx + startMarker.length;
+    let endIdx = raw.length;
+    for (const em of endMarkers) {
+      const idx = raw.indexOf(em, contentStart);
+      if (idx !== -1 && idx < endIdx) endIdx = idx;
+    }
+    return raw.slice(contentStart, endIdx);
+  }
+
+  async function submitSingle(text) {
     addThinking();
-
     let bubble = null;
     let accumulated = '';
 
@@ -572,22 +745,87 @@ HTML_PAGE = """<!doctype html>
           bubble = addMessage('assistant', '');
         }
         accumulated += decoder.decode(value, { stream: true });
-        const truncated = accumulated.includes(TRUNCATION_MARKER);
-        const display = truncated ? accumulated.split(TRUNCATION_MARKER)[0] : accumulated;
+        const { display, truncated } = splitTruncated(accumulated);
         setAssistantContent(bubble, display, truncated);
         thread.parentElement.scrollTop = thread.parentElement.scrollHeight;
       }
 
-      const finalText = accumulated.split(TRUNCATION_MARKER)[0];
+      const finalText = splitTruncated(accumulated).display;
       history.push({ role: 'user', content: text });
       history.push({ role: 'assistant', content: finalText });
     } catch (e) {
       removeThinking();
       addMessage('assistant', 'Erreur : impossible de contacter le modele.');
-    } finally {
-      send.disabled = false;
-      input.focus();
     }
+  }
+
+  async function submitCompare(text) {
+    const { baselineBubble, ablatedBubble } = addCompareRow();
+    let accumulated = '';
+
+    try {
+      const res = await fetch('/api/compare/stream', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: text, history: baselineHistory })
+      });
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        accumulated += decoder.decode(value, { stream: true });
+
+        const ablatedRaw = extractSection(accumulated, SECTION_ABLATED, [SECTION_END]);
+        if (ablatedRaw !== null) {
+          const { display, truncated } = splitTruncated(ablatedRaw);
+          setAssistantContent(ablatedBubble, display || '...', truncated);
+        }
+
+        if (accumulated.includes(SECTION_LOADING) && !accumulated.includes(SECTION_BASELINE)) {
+          baselineBubble.innerHTML = '<span class="compare-loading">chargement du modele original...</span>';
+        }
+
+        const baselineRaw = extractSection(accumulated, SECTION_BASELINE, [SECTION_END]);
+        if (baselineRaw !== null) {
+          const { display, truncated } = splitTruncated(baselineRaw);
+          setAssistantContent(baselineBubble, display || '...', truncated);
+        }
+
+        thread.parentElement.scrollTop = thread.parentElement.scrollHeight;
+      }
+
+      const ablatedFinal = splitTruncated(extractSection(accumulated, SECTION_ABLATED, [SECTION_END]) || '').display;
+      const baselineFinal = splitTruncated(extractSection(accumulated, SECTION_BASELINE, [SECTION_END]) || '').display;
+      history.push({ role: 'user', content: text });
+      history.push({ role: 'assistant', content: ablatedFinal });
+      baselineHistory.push({ role: 'user', content: text });
+      baselineHistory.push({ role: 'assistant', content: baselineFinal });
+    } catch (e) {
+      ablatedBubble.innerHTML = renderMarkdown('Erreur : impossible de contacter le modele.');
+      baselineBubble.innerHTML = renderMarkdown('Erreur : impossible de contacter le modele.');
+    }
+  }
+
+  async function submit() {
+    const text = input.value.trim();
+    if (!text) return;
+    enterChatMode();
+    input.value = '';
+    input.style.height = 'auto';
+    send.disabled = true;
+
+    addMessage('user', text);
+
+    if (hasBaseline && compareCheckbox.checked) {
+      await submitCompare(text);
+    } else {
+      await submitSingle(text);
+    }
+
+    send.disabled = false;
+    input.focus();
   }
 
   send.addEventListener('click', submit);
@@ -618,25 +856,18 @@ HTML_PAGE = """<!doctype html>
 def main():
     parser = argparse.ArgumentParser(prog="argos-server")
     parser.add_argument("--model", required=True)
+    parser.add_argument("--baseline", default=None)
     parser.add_argument("--dtype", default="bfloat16")
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--port", type=int, default=7860)
     args = parser.parse_args()
 
-    tokenizer = AutoTokenizer.from_pretrained(args.model)
-    tokenizer.padding_side = "left"
-    if tokenizer.pad_token is None:
-        tokenizer.pad_token = tokenizer.eos_token
+    _state["ablated_path"] = args.model
+    _state["baseline_path"] = args.baseline
+    _state["dtype"] = getattr(torch, args.dtype)
+    _state["device_arg"] = args.device
 
-    model = AutoModelForImageTextToText.from_pretrained(
-        args.model, torch_dtype=getattr(torch, args.dtype), device_map=args.device
-    )
-    model.eval()
-
-    _state["model"] = model
-    _state["tokenizer"] = tokenizer
-    _state["device"] = next(model.parameters()).device
-    _state["model_path"] = args.model
+    ensure_active("ablated")
 
     uvicorn.run(app, host="0.0.0.0", port=args.port)
 
