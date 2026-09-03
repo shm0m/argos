@@ -72,34 +72,30 @@ HTML_PAGE = """<!doctype html>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.5/purify.min.js"></script>
 <style>
   :root {
-    --bg: #f4f5f2;
-    --surface: #eaebe5;
-    --surface-2: #e1e3db;
-    --ink: #1c1f1b;
-    --ink-muted: #5b5f55;
-    --ink-faint: #8b9082;
-    --line: #d6d8d0;
-    --gold: #93691a;
-    --gold-soft: #a8791e;
-    --harm: #a3392d;
-    --safe: #26635f;
+    --bg: #f5f5f6;
+    --surface: #e9e9eb;
+    --surface-2: #dddee1;
+    --ink: #18191b;
+    --ink-muted: #56575c;
+    --ink-faint: #8b8c91;
+    --line: #d1d2d6;
+    --accent: #cc2b2b;
+    --online: #1f9d55;
     --font-display: 'Fraunces', Georgia, serif;
     --font-body: 'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif;
     --font-mono: 'IBM Plex Mono', Consolas, monospace;
   }
   @media (prefers-color-scheme: dark) {
     :root {
-      --bg: #14170f;
-      --surface: #1c2016;
-      --surface-2: #262b1d;
-      --ink: #e9eae3;
-      --ink-muted: #a3a897;
-      --ink-faint: #6f7566;
-      --line: #2c3123;
-      --gold: #d6a64c;
-      --gold-soft: #c99444;
-      --harm: #e2604f;
-      --safe: #5cbdb7;
+      --bg: #0e0f10;
+      --surface: #1a1b1d;
+      --surface-2: #232427;
+      --ink: #ededee;
+      --ink-muted: #9a9ba0;
+      --ink-faint: #6a6b70;
+      --line: #2a2b2e;
+      --accent: #ff4c4c;
+      --online: #3ddc73;
     }
   }
   * { box-sizing: border-box; }
@@ -134,7 +130,7 @@ HTML_PAGE = """<!doctype html>
     font-size: 0.72rem;
     letter-spacing: 0.08em;
     text-transform: uppercase;
-    color: var(--gold-soft);
+    color: var(--accent);
   }
   #model-badge {
     font-family: var(--font-mono);
@@ -155,7 +151,7 @@ HTML_PAGE = """<!doctype html>
     width: 0.5rem;
     height: 0.5rem;
     border-radius: 50%;
-    background: var(--safe);
+    background: var(--online);
     margin-right: 0.5rem;
   }
 
@@ -218,8 +214,8 @@ HTML_PAGE = """<!doctype html>
     cursor: pointer;
     transition: border-color 0.15s, color 0.15s;
   }
-  .chip:hover { border-color: var(--gold-soft); color: var(--ink); }
-  .chip:focus-visible { outline: 2px solid var(--gold-soft); outline-offset: 2px; }
+  .chip:hover { border-color: var(--accent); color: var(--ink); }
+  .chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
   #thread {
     width: 100%;
@@ -249,7 +245,7 @@ HTML_PAGE = """<!doctype html>
     margin-top: 0.15rem;
   }
   .msg.user .avatar { background: var(--surface-2); color: var(--ink-muted); }
-  .msg.assistant .avatar { background: var(--gold-soft); color: var(--bg); }
+  .msg.assistant .avatar { background: var(--accent); color: var(--bg); }
 
   .bubble {
     padding: 0.75rem 1rem;
@@ -272,7 +268,7 @@ HTML_PAGE = """<!doctype html>
   .bubble h2 { font-size: 1.12rem; }
   .bubble h3 { font-size: 1.02rem; }
   .bubble strong { font-weight: 600; color: var(--ink); }
-  .bubble a { color: var(--gold-soft); }
+  .bubble a { color: var(--accent); }
   .bubble code {
     font-family: var(--font-mono);
     font-size: 0.87em;
@@ -290,7 +286,7 @@ HTML_PAGE = """<!doctype html>
   }
   .bubble pre code { background: none; padding: 0; }
   .bubble blockquote {
-    border-left: 3px solid var(--gold-soft);
+    border-left: 3px solid var(--accent);
     margin: 0 0 0.7em;
     padding: 0.1em 0 0.1em 1em;
     color: var(--ink-muted);
@@ -340,12 +336,12 @@ HTML_PAGE = """<!doctype html>
   #input:focus { outline: none; }
   #composer:focus-within { outline: none; }
   footer #composer, #hero-pill { border: 1px solid var(--line); border-radius: 14px; background: var(--surface); padding: 0.6rem 0.7rem 0.6rem 1rem; }
-  footer #composer:focus-within, #hero-pill:focus-within { border-color: var(--gold-soft); }
+  footer #composer:focus-within, #hero-pill:focus-within { border-color: var(--accent); }
   #send {
     font-family: var(--font-mono);
     font-size: 0.82rem;
     letter-spacing: 0.03em;
-    background: var(--gold-soft);
+    background: var(--accent);
     color: var(--bg);
     border: none;
     border-radius: 10px;
@@ -356,7 +352,7 @@ HTML_PAGE = """<!doctype html>
   }
   #send:hover { opacity: 0.88; }
   #send:disabled { opacity: 0.4; cursor: default; }
-  #send:focus-visible { outline: 2px solid var(--gold-soft); outline-offset: 2px; }
+  #send:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
   ::-webkit-scrollbar { width: 10px; }
   ::-webkit-scrollbar-thumb { background: var(--line); border-radius: 6px; }
