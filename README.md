@@ -56,24 +56,25 @@ flowchart LR
 
 ```
 argos/
-  cli.py              # pipeline complet : trouve la direction, ablate, sauvegarde
-  data.py             # jeux d'instructions nuisibles/benignes (datasets publics)
-  activations.py      # collecte du residual stream via hooks
-  direction.py        # calcul des directions candidates, ablation par hook
-  ablate.py            # orthogonalisation permanente des poids
-  measure.py           # refus vs capacite, modele original vs ablate
-  sweep.py             # balayage multi-couches (la figure signature)
-  detect.py            # detection a direction connue
-  detect_blind.py      # detection a direction inconnue (comparaison de profils)
-  server.py            # demo de chat interactive (FastAPI)
+  cli.py            # pipeline complet : trouve la direction, ablate, sauvegarde
+  config.py         # chargement de la config YAML (ArgosConfig)
+  data.py           # jeux d'instructions nuisibles/benignes (datasets publics)
+  activations.py    # collecte du residual stream via hooks
+  direction.py      # calcul des directions candidates, ablation par hook
+  ablate.py         # orthogonalisation permanente des poids
+  measure.py        # refus vs capacite, modele original vs ablate
+  sweep.py          # balayage multi-couches (la figure signature)
+  detect.py         # detection a direction connue
+  detect_blind.py   # detection a direction inconnue (comparaison de profils)
+  server.py         # demo de chat interactive (FastAPI)
   eval/
-    refusal.py          # taux de refus, IC de Wilson, detection de texte degenere
-    capability.py       # wrapper lm-eval-harness (HellaSwag/MMLU/GSM8K)
+    refusal.py        # taux de refus, IC de Wilson, detection de texte degenere
+    capability.py     # wrapper lm-eval-harness (HellaSwag/MMLU/GSM8K)
 configs/ministral-3b.yaml
-tests/                  # 18 tests, aucun ne necessite de GPU
-METHODE.md              # comment fonctionne l'abliteration, pas a pas
-WRITEUP.md              # obstacles reels rencontres et resultats, en detail
-RAPPORT.md              # demarche, sources, apprentissages, perspectives
+tests/                # 18 tests, aucun ne necessite de GPU
+METHODE.md            # comment fonctionne l'abliteration, pas a pas
+WRITEUP.md            # obstacles reels rencontres et resultats, en detail
+RAPPORT.md            # demarche, sources, apprentissages, perspectives
 ```
 
 ## Roadmap
