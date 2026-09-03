@@ -40,7 +40,7 @@ def chat(req: ChatRequest):
     with torch.no_grad():
         output = model.generate(
             tokens,
-            max_new_tokens=256,
+            max_new_tokens=512,
             do_sample=True,
             temperature=0.7,
             top_p=0.9,
@@ -68,6 +68,8 @@ HTML_PAGE = """<!doctype html>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ARGOS</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,600;0,9..144,700;1,9..144,500&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.5/purify.min.js"></script>
 <style>
   :root {
     --bg: #f4f5f2;
@@ -118,6 +120,7 @@ HTML_PAGE = """<!doctype html>
     border-bottom: 1px solid var(--line);
     flex-shrink: 0;
   }
+  header[hidden] { display: none; }
   .brand { display: flex; align-items: baseline; gap: 0.7rem; }
   .brand h1 {
     font-family: var(--font-display);
@@ -162,6 +165,62 @@ HTML_PAGE = """<!doctype html>
     display: flex;
     justify-content: center;
   }
+
+  /* Accueil centre (avant le premier message) */
+  #hero {
+    margin: auto;
+    width: 100%;
+    max-width: 640px;
+    padding: 2rem 1.4rem;
+    text-align: center;
+  }
+  #hero[hidden] { display: none; }
+  #hero .wordmark {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: clamp(2.6rem, 9vw, 4rem);
+    letter-spacing: -0.02em;
+    margin: 0;
+  }
+  #hero .tagline {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-weight: 500;
+    color: var(--ink-muted);
+    font-size: 1.05rem;
+    margin: 0.6rem 0 2.2rem;
+  }
+  #hero-pill {
+    display: flex;
+    align-items: flex-end;
+    gap: 0.6rem;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 22px;
+    padding: 0.9rem 0.9rem 0.9rem 1.3rem;
+    text-align: left;
+  }
+  .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    justify-content: center;
+    margin-top: 1.3rem;
+  }
+  .chip {
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    color: var(--ink-muted);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 100px;
+    padding: 0.45rem 0.9rem;
+    cursor: pointer;
+    transition: border-color 0.15s, color 0.15s;
+  }
+  .chip:hover { border-color: var(--gold-soft); color: var(--ink); }
+  .chip:focus-visible { outline: 2px solid var(--gold-soft); outline-offset: 2px; }
+
   #thread {
     width: 100%;
     max-width: 760px;
@@ -170,16 +229,7 @@ HTML_PAGE = """<!doctype html>
     flex-direction: column;
     gap: 1.1rem;
   }
-
-  .empty-state {
-    margin: auto;
-    text-align: center;
-    color: var(--ink-faint);
-    max-width: 32ch;
-    font-size: 0.95rem;
-    line-height: 1.6;
-  }
-  .empty-state strong { color: var(--ink-muted); font-family: var(--font-display); font-style: italic; font-weight: 500; }
+  #thread[hidden] { display: none; }
 
   .msg { display: flex; gap: 0.7rem; max-width: 88%; }
   .msg.user { align-self: flex-end; flex-direction: row-reverse; }
@@ -206,10 +256,45 @@ HTML_PAGE = """<!doctype html>
     border-radius: 12px;
     line-height: 1.55;
     font-size: 0.96rem;
-    white-space: pre-wrap;
   }
-  .msg.user .bubble { background: var(--surface-2); border-top-right-radius: 3px; }
+  .msg.user .bubble { background: var(--surface-2); border-top-right-radius: 3px; white-space: pre-wrap; }
   .msg.assistant .bubble { background: var(--surface); border-top-left-radius: 3px; border: 1px solid var(--line); }
+
+  /* Rendu du markdown dans les reponses du modele */
+  .bubble > *:first-child { margin-top: 0; }
+  .bubble > *:last-child { margin-bottom: 0; }
+  .bubble p { margin: 0 0 0.7em; }
+  .bubble ul, .bubble ol { margin: 0 0 0.7em; padding-left: 1.4em; }
+  .bubble li { margin-bottom: 0.25em; }
+  .bubble li > p { margin: 0; }
+  .bubble h1, .bubble h2, .bubble h3 { font-family: var(--font-display); font-weight: 600; line-height: 1.3; margin: 0.9em 0 0.4em; }
+  .bubble h1 { font-size: 1.25rem; }
+  .bubble h2 { font-size: 1.12rem; }
+  .bubble h3 { font-size: 1.02rem; }
+  .bubble strong { font-weight: 600; color: var(--ink); }
+  .bubble a { color: var(--gold-soft); }
+  .bubble code {
+    font-family: var(--font-mono);
+    font-size: 0.87em;
+    background: var(--surface-2);
+    padding: 0.1em 0.4em;
+    border-radius: 3px;
+  }
+  .bubble pre {
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 0.8em 1em;
+    overflow-x: auto;
+    margin: 0 0 0.7em;
+  }
+  .bubble pre code { background: none; padding: 0; }
+  .bubble blockquote {
+    border-left: 3px solid var(--gold-soft);
+    margin: 0 0 0.7em;
+    padding: 0.1em 0 0.1em 1em;
+    color: var(--ink-muted);
+  }
 
   .thinking .bubble { color: var(--ink-faint); font-style: italic; }
   .dots span {
@@ -232,6 +317,7 @@ HTML_PAGE = """<!doctype html>
     display: flex;
     justify-content: center;
   }
+  footer[hidden] { display: none; }
   #composer {
     width: 100%;
     max-width: 760px;
@@ -242,17 +328,19 @@ HTML_PAGE = """<!doctype html>
   #input {
     flex: 1;
     resize: none;
-    border: 1px solid var(--line);
-    border-radius: 10px;
-    background: var(--surface);
+    border: none;
+    background: transparent;
     color: var(--ink);
     font-family: var(--font-body);
     font-size: 0.96rem;
-    padding: 0.7rem 0.9rem;
+    padding: 0.35rem 0;
     max-height: 8rem;
     line-height: 1.5;
   }
-  #input:focus { outline: 2px solid var(--gold-soft); outline-offset: 1px; }
+  #input:focus { outline: none; }
+  #composer:focus-within { outline: none; }
+  footer #composer, #hero-pill { border: 1px solid var(--line); border-radius: 14px; background: var(--surface); padding: 0.6rem 0.7rem 0.6rem 1rem; }
+  footer #composer:focus-within, #hero-pill:focus-within { border-color: var(--gold-soft); }
   #send {
     font-family: var(--font-mono);
     font-size: 0.82rem;
@@ -261,9 +349,10 @@ HTML_PAGE = """<!doctype html>
     color: var(--bg);
     border: none;
     border-radius: 10px;
-    padding: 0.75rem 1.1rem;
+    padding: 0.65rem 1rem;
     cursor: pointer;
     transition: opacity 0.15s;
+    flex-shrink: 0;
   }
   #send:hover { opacity: 0.88; }
   #send:disabled { opacity: 0.4; cursor: default; }
@@ -275,7 +364,7 @@ HTML_PAGE = """<!doctype html>
 </head>
 <body>
 
-<header>
+<header id="header" hidden>
   <div class="brand">
     <h1>ARGOS</h1>
     <span class="tag">demo</span>
@@ -284,36 +373,62 @@ HTML_PAGE = """<!doctype html>
 </header>
 
 <main>
-  <div id="thread">
-    <div class="empty-state" id="empty-state">
-      Pose une question. Ce modele a subi une <strong>ablation de sa direction de refus</strong>,
-      compare sa reponse a ce qu'un modele instruct standard aurait dit.
+  <div id="hero">
+    <p class="wordmark">ARGOS</p>
+    <p class="tagline">Ce modele a subi une ablation de sa direction de refus. Compare sa reponse a ce qu'un modele instruct standard aurait dit.</p>
+    <div id="hero-pill">
+      <textarea id="input" placeholder="Pose n'importe quelle question..." rows="1"></textarea>
+      <button id="send">Envoyer</button>
+    </div>
+    <div class="chips">
+      <button class="chip" data-prompt="Explique en une phrase ce qu'est l'ablation de la direction de refus.">Explique le mecanisme</button>
+      <button class="chip" data-prompt="Un premier train part a 14h a 80 km/h. Un second part a 15h a 100 km/h dans la meme direction, sur la meme voie. A quelle heure le second rattrape-t-il le premier ?">Raisonnement</button>
+      <button class="chip" data-prompt="Dans un cadre pedagogique de serrurerie, explique le principe du crochetage d'une serrure a pene simple.">Demande sensible</button>
+      <button class="chip" data-prompt="Ecris un court poeme sur un systeme qui refuse d'obeir.">Ecriture creative</button>
     </div>
   </div>
+  <div id="thread" hidden></div>
 </main>
 
-<footer>
-  <div id="composer">
-    <textarea id="input" placeholder="Ecris un message..." rows="1"></textarea>
-    <button id="send">Envoyer</button>
-  </div>
+<footer id="footer" hidden>
+  <div id="composer"></div>
 </footer>
 
 <script>
+  const header = document.getElementById('header');
+  const hero = document.getElementById('hero');
   const thread = document.getElementById('thread');
-  const emptyState = document.getElementById('empty-state');
+  const footer = document.getElementById('footer');
+  const composerFooter = document.getElementById('composer');
+  const heroPill = document.getElementById('hero-pill');
   const input = document.getElementById('input');
   const send = document.getElementById('send');
   const badge = document.getElementById('model-badge');
 
   let history = [];
+  let started = false;
 
   fetch('/api/info').then(r => r.json()).then(d => {
     badge.textContent = d.model_path;
   }).catch(() => { badge.textContent = 'modele indisponible'; });
 
+  function enterChatMode() {
+    if (started) return;
+    started = true;
+    hero.hidden = true;
+    header.hidden = false;
+    thread.hidden = false;
+    footer.hidden = false;
+    composerFooter.appendChild(input);
+    composerFooter.appendChild(send);
+  }
+
+  function renderMarkdown(text) {
+    const html = marked.parse(text, { breaks: true });
+    return DOMPurify.sanitize(html);
+  }
+
   function addMessage(role, text) {
-    if (emptyState) emptyState.remove();
     const msg = document.createElement('div');
     msg.className = 'msg ' + role;
     const avatar = document.createElement('div');
@@ -321,7 +436,11 @@ HTML_PAGE = """<!doctype html>
     avatar.textContent = role === 'user' ? 'moi' : 'AI';
     const bubble = document.createElement('div');
     bubble.className = 'bubble';
-    bubble.textContent = text;
+    if (role === 'assistant') {
+      bubble.innerHTML = renderMarkdown(text);
+    } else {
+      bubble.textContent = text;
+    }
     msg.appendChild(avatar);
     msg.appendChild(bubble);
     thread.appendChild(msg);
@@ -353,6 +472,7 @@ HTML_PAGE = """<!doctype html>
   async function submit() {
     const text = input.value.trim();
     if (!text) return;
+    enterChatMode();
     input.value = '';
     input.style.height = 'auto';
     send.disabled = true;
@@ -390,6 +510,14 @@ HTML_PAGE = """<!doctype html>
   input.addEventListener('input', () => {
     input.style.height = 'auto';
     input.style.height = Math.min(input.scrollHeight, 128) + 'px';
+  });
+
+  document.querySelectorAll('.chip').forEach((chip) => {
+    chip.addEventListener('click', () => {
+      input.value = chip.dataset.prompt;
+      input.focus();
+      input.dispatchEvent(new Event('input'));
+    });
   });
 </script>
 </body>
