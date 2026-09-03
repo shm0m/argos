@@ -7,7 +7,11 @@
 
 Un LLM refuse ou obéit selon la valeur d'**une seule direction** dans son espace d'activation. ARGOS la localise, la neutralise dans les poids d'un modèle réel (Ministral-3-3B), mesure ce que ça coûte vraiment en capacité de raisonnement, et construit les outils pour détecter qu'un modèle a subi cette opération, y compris quand on ne connaît pas la direction utilisée.
 
-📄 [Note de méthode illustrée](https://claude.ai/code/artifact/5b39802e-f7a7-4159-ae47-9a17c2e3e679) · 📝 [Write-up technique complet (obstacles réels + résultats)](WRITEUP.md)
+| Document | Contenu |
+|---|---|
+| [METHODE.md](METHODE.md) | Comment fonctionne l'abliteration, expliquée pas à pas avec les équations. |
+| [WRITEUP.md](WRITEUP.md) | Le write-up technique complet : obstacles réels rencontrés et résultats chiffrés. |
+| [RAPPORT.md](RAPPORT.md) | Carnet de bord : démarche, sources utilisées, ce que j'ai appris, perspectives. |
 
 ## Pourquoi ce projet
 
@@ -67,14 +71,14 @@ argos/
     capability.py       # wrapper lm-eval-harness (HellaSwag/MMLU/GSM8K)
 configs/ministral-3b.yaml
 tests/                  # 18 tests, aucun ne necessite de GPU
+METHODE.md              # comment fonctionne l'abliteration, pas a pas
 WRITEUP.md              # obstacles reels rencontres et resultats, en detail
+RAPPORT.md              # demarche, sources, apprentissages, perspectives
 ```
 
-## Statut
-
-Phases 0 à 4 terminées et validées sur GPU réel (RTX 5070 Ti, 12 Go). Voir [Roadmap](#roadmap).
-
 ## Roadmap
+
+Phases 0 à 4 terminées et validées sur GPU réel (RTX 5070 Ti, 12 Go).
 
 - [x] Phase 0 : cadrage, structure du repo
 - [x] Phase 1 : direction de refus, orthogonalisation, validée de bout en bout sur GPU
